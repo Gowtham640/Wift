@@ -47,12 +47,20 @@ export function useExercises(filters?: {
     return await db.exercises.bulkAdd(exercises);
   };
 
+  const deleteAllExercises = async () => {
+    // Delete all routine exercises first
+    await db.routine_exercises.clear();
+    // Delete all exercises
+    await db.exercises.clear();
+  };
+
   return {
     exercises,
     addExercise,
     updateExercise,
     deleteExercise,
-    bulkAddExercises
+    bulkAddExercises,
+    deleteAllExercises
   };
 }
 

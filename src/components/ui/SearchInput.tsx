@@ -18,14 +18,14 @@ export default function SearchInput({
     <div className={`relative ${className}`}>
       <Search
         size={20}
-        className="absolute left-60 top-1/2 -translate-y-1/2 text-white/0 pointer-events-none z-10"
+        className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40 pointer-events-none z-10"
       />
       <Input
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="pl-10"
+        className="pl-12"
       />
     </div>
   );

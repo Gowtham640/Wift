@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useExercises } from '@/hooks/useExercises';
 import { useProfile } from '@/hooks/useProfile';
-import { Trash2, Edit, Plus, User, Save } from 'lucide-react';
+import { Trash2, Edit, Plus, User, Save, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react';
 import GlassWidget from '@/components/ui/GlassWidget';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
@@ -15,12 +15,14 @@ import { type Exercise } from '@/lib/db';
 
 export default function AdminPage() {
   const [search, setSearch] = useState('');
-  const { exercises, addExercise, updateExercise, deleteExercise, bulkAddExercises } = useExercises({ search });
+  const { exercises, addExercise, updateExercise, deleteExercise, bulkAddExercises, deleteAllExercises } = useExercises({ search });
   const { profile, updateProfile } = useProfile();
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingExercise, setEditingExercise] = useState<Exercise | null>(null);
   const [profileName, setProfileName] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const [exercisesCollapsed, setExercisesCollapsed] = useState(true);
+  const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
 
   useEffect(() => {
     if (profile?.name) {
@@ -60,6 +62,15 @@ export default function AdminPage() {
 
   const handleBulkUpload = async (exercises: Omit<Exercise, 'id'>[]) => {
     await bulkAddExercises(exercises);
+  };
+
+  const handleDeleteAllExercises = async () => {
+    if (confirm(`Are you sure you want to delete ALL ${exercises?.length || 0} exercises? This action cannot be undone and will also remove them from all routines.`)) {
+      await deleteAllExercises();
+      setShowDeleteAllConfirm(false);
+      setSuccessMessage('All exercises deleted successfully!');
+      setTimeout(() => setSuccessMessage(''), 3000);
+    }
   };
 
   return (
@@ -107,18 +118,34 @@ export default function AdminPage() {
       )}
 
       {/* Exercise Management */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-2 md:px-0">
-        <h2 className="text-xl md:text-2xl font-bold text-white">Exercise Management</h2>
-        <Button onClick={() => setShowAddModal(true)} className="w-full sm:w-auto text-sm md:text-base py-2 md:py-3">
-          <Plus size={18} />
-          Add Exercise
-        </Button>
-      </div>
+      <GlassWidget className="p-4 md:p-6">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <button
+            onClick={() => setExercisesCollapsed(!exercisesCollapsed)}
+            className="flex items-center gap-2 text-left hover:opacity-80 transition-opacity"
+          >
+            {exercisesCollapsed ? <ChevronDown size={20} /> : <ChevronUp size={20} />}
+            <h2 className="text-xl md:text-2xl font-bold text-white">Exercise Management</h2>
+          </button>
+          <div className="flex gap-2 w-full sm:w-auto">
+            <Button
+              onClick={() => setShowDeleteAllConfirm(true)}
+              variant="danger"
+              className="w-full sm:w-auto text-sm md:text-base py-2 md:py-3"
+            >
+              <Trash2 size={18} />
+              Delete All
+            </Button>
+            <Button onClick={() => setShowAddModal(true)} className="w-full sm:w-auto text-sm md:text-base py-2 md:py-3">
+              <Plus size={18} />
+              Add Exercise
+            </Button>
+          </div>
+        </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
-        <div className="lg:col-span-2">
-          <GlassWidget className="p-6">
-            <div className="mb-4">
+        {!exercisesCollapsed && (
+          <>
+            <div className="mt-6">
               <SearchInput
                 value={search}
                 onChange={setSearch}
@@ -126,7 +153,7 @@ export default function AdminPage() {
               />
             </div>
 
-            <div className="space-y-2">
+            <div className="mt-4 space-y-2">
               {exercises && exercises.length === 0 && (
                 <p className="text-center text-white/40 py-8">
                   No exercises found. Add your first exercise!
@@ -162,13 +189,50 @@ export default function AdminPage() {
                 </div>
               ))}
             </div>
-          </GlassWidget>
-        </div>
 
-        <div>
-          <FileUploader onUpload={handleBulkUpload} />
+            <div className="mt-6">
+              <FileUploader onUpload={handleBulkUpload} />
+            </div>
+          </>
+        )}
+      </GlassWidget>
+
+
+      <Modal
+        isOpen={showDeleteAllConfirm}
+        onClose={() => setShowDeleteAllConfirm(false)}
+        title="Delete All Exercises"
+      >
+        <div className="space-y-4">
+          <div className="flex items-center gap-3 text-yellow-400">
+            <AlertTriangle size={24} />
+            <div>
+              <h3 className="font-semibold">Warning: This action cannot be undone!</h3>
+              <p className="text-sm text-white/80">
+                This will permanently delete all {exercises?.length || 0} exercises and remove them from all routines.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex gap-3">
+            <Button
+              onClick={() => setShowDeleteAllConfirm(false)}
+              variant="secondary"
+              className="flex-1"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleDeleteAllExercises}
+              variant="danger"
+              className="flex-1"
+            >
+              <Trash2 size={18} />
+              Delete All
+            </Button>
+          </div>
         </div>
-      </div>
+      </Modal>
 
       <Modal
         isOpen={showAddModal}

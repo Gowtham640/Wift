@@ -14,18 +14,19 @@ export default withPWA({
   skipWaiting: true,
   // Offline fallbacks for true offline-first experience
   fallbacks: {
-    document: '/offline.html',
+    document: '/',
   },
   // Enhanced caching for offline-first functionality
   runtimeCaching: [
     {
-      // Cache the app shell aggressively for offline access
-      urlPattern: /^\/$/,
-      handler: 'CacheFirst',
+      // Handle navigation requests with longer timeout for better offline experience
+      urlPattern: ({ request }: { request: Request }) => request.mode === 'navigate',
+      handler: 'NetworkFirst',
       options: {
-        cacheName: 'offline-shell',
+        cacheName: 'pages',
+        networkTimeoutSeconds: 3, // Shorter timeout for faster offline detection
         expiration: {
-          maxEntries: 1,
+          maxEntries: 50,
           maxAgeSeconds: 24 * 60 * 60 // 24 hours
         }
       }

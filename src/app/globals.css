@@ -30,25 +30,25 @@ body {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
-/* Ensure bottom navigation is always visible */
+/* Mobile viewport optimization */
 @media (max-width: 768px) {
-  .bottom-nav-container {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    z-index: 50;
-    padding-bottom: env(safe-area-inset-bottom, 0px);
+  /* Ensure proper viewport height handling for mobile */
+  html, body {
+    height: 100vh;
+    height: 100dvh; /* Dynamic viewport height for modern mobile browsers */
   }
+}
 
-  /* Ensure body doesn't hide the bottom navigation */
-  body {
-    padding-bottom: 0 !important;
-  }
-
-  /* Ensure main content doesn't interfere */
-  main {
-    margin-bottom: 0 !important;
+/* Bottom navigation overlay - ensure it floats above all content */
+@media (max-width: 768px) {
+  .bottom-nav-overlay .glass-widget {
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    border-radius: 0 !important;
+    backdrop-filter: blur(16px) !important;
+    -webkit-backdrop-filter: blur(16px) !important;
   }
 }
 

@@ -123,6 +123,8 @@ export default function DashboardPage() {
 
         <div className="col-span-2 lg:col-span-1">
           <LatestWorkoutWidget workout={latestWorkout || null} />
+          {/* Invisible spacer to push content above BottomNav overlay */}
+          <div className="h-20 md:hidden" aria-hidden="true" />
         </div>
       </div>
     </div>

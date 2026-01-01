@@ -7,13 +7,15 @@ import {
   BarChart3,
   ListChecks,
   Library,
-  Settings
+  Settings,
+  History
 } from 'lucide-react';
 
 const navItems = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/routines', label: 'Routines', icon: ListChecks },
   { href: '/exercises', label: 'Exercises', icon: Library },
+  { href: '/history', label: 'History', icon: History },
   { href: '/analytics', label: 'Analytics', icon: BarChart3 },
   { href: '/admin', label: 'Admin', icon: Settings }
 ];
@@ -22,8 +24,9 @@ export default function BottomNav() {
   const pathname = usePathname();
 
   return (
-    <div className="md:hidden fixed bottom-0 left-0 right-0 w-full glass-widget rounded-none border-t border-white/10 pb-safe z-100">
-      <nav className="flex items-center justify-around px-2 py-3">
+    <div className="md:hidden fixed bottom-0 left-0 right-0 w-full z-[9999] pointer-events-auto">
+      <div className="bg-black/90 fixed bottom-0 left-0 right-0 w-full rounded-none border-t border-white/10 pb-safe">
+        <nav className="flex items-center justify-around px-2 py-3">
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = pathname === item.href || 
@@ -44,7 +47,8 @@ export default function BottomNav() {
             </Link>
           );
         })}
-      </nav>
+        </nav>
+      </div>
     </div>
   );
 }

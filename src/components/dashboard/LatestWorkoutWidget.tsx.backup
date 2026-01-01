@@ -21,11 +21,10 @@ export default function LatestWorkoutWidget({ workout }: LatestWorkoutWidgetProp
   }
 
   return (
-    <GlassWidget widgetId="dashboard-latest-workout" showGlow allowColorChange className="p-4 md:p-6 mb-10">
+    <GlassWidget widgetId="dashboard-latest-workout" showGlow allowColorChange className="p-4 md:p-6">
       <h2 className="text-lg md:text-xl font-bold text-white mb-3 md:mb-4">Latest Workout</h2>
 
-      <div className="max-h-64 overflow-y-auto" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.2) transparent' }}>
-        <div className="space-y-4">
+      <div className="space-y-4">
         <div>
           <h3 className="text-lg font-semibold text-white">
             {workout.routine?.name || 'Free Workout'}

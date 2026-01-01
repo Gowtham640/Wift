@@ -38,7 +38,9 @@ export default function RootLayout({
             {children}
           </main>
         </div>
-        <BottomNav />
+        <div className="md:hidden">
+          <BottomNav />
+        </div>
       </body>
     </html>
   );

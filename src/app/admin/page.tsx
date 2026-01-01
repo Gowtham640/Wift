@@ -20,6 +20,7 @@ export default function AdminPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingExercise, setEditingExercise] = useState<Exercise | null>(null);
   const [profileName, setProfileName] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
 
   useEffect(() => {
     if (profile?.name) {
@@ -28,7 +29,15 @@ export default function AdminPage() {
   }, [profile?.name]);
 
   const handleUpdateProfile = async () => {
-    await updateProfile({ name: profileName });
+    try {
+      await updateProfile({ name: profileName });
+      setSuccessMessage('Profile updated successfully!');
+      setTimeout(() => setSuccessMessage(''), 3000);
+    } catch (error) {
+      console.error('Failed to update profile:', error);
+      setSuccessMessage('Failed to update profile. Please try again.');
+      setTimeout(() => setSuccessMessage(''), 3000);
+    }
   };
 
   const handleAdd = async (exercise: Omit<Exercise, 'id'>) => {
@@ -90,6 +99,12 @@ export default function AdminPage() {
           </div>
         </div>
       </GlassWidget>
+
+      {successMessage && (
+        <div className="mt-4 p-3 rounded-lg bg-green-500/10 border border-green-500/30 text-green-400 text-sm text-center">
+          {successMessage}
+        </div>
+      )}
 
       {/* Exercise Management */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-2 md:px-0">

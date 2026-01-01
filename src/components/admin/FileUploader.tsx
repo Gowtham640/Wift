@@ -55,16 +55,68 @@ export default function FileUploader({ onUpload }: FileUploaderProps) {
         ? data.slice(1)
         : data;
 
+      // Check if we have any data rows
+      if (dataLines.length === 0) {
+        setPreview([{
+          name: 'No Data Found',
+          muscleGroup: '',
+          equipment: undefined,
+          isValid: false,
+          error: 'The file appears to be empty or contains no data rows. Please ensure your file has exercise data in the expected format.'
+        }]);
+        return;
+      }
+
       const parsed: ParsedExercise[] = dataLines.map((row, index) => {
         const [name, muscleGroup, equipment] = row.map(cell => cell?.toString().trim() || '');
+        const rowNumber = data[0].some(cell => cell?.toString().toLowerCase().includes('name')) ? index + 2 : index + 1;
 
-        if (!name || !muscleGroup) {
+        // Check if row has enough columns
+        if (row.length < 2) {
           return {
-            name: name || `Row ${index + 1}`,
+            name: `Row ${rowNumber}`,
+            muscleGroup: '',
+            equipment: undefined,
+            isValid: false,
+            error: `Row ${rowNumber}: Insufficient columns. Expected at least 2 columns (name, muscleGroup), found ${row.length} column${row.length !== 1 ? 's' : ''}. ${row.length > 0 ? `Found data: "${row.join('", "')}"` : ''}`
+          };
+        }
+
+        // Detailed error checking
+        const missingFields: string[] = [];
+        const presentFields: string[] = [];
+
+        if (!name) {
+          missingFields.push('name');
+        } else {
+          presentFields.push(`name: "${name}"`);
+        }
+
+        if (!muscleGroup) {
+          missingFields.push('muscleGroup');
+        } else {
+          presentFields.push(`muscleGroup: "${muscleGroup}"`);
+        }
+
+        if (equipment) {
+          presentFields.push(`equipment: "${equipment}"`);
+        }
+
+        if (missingFields.length > 0) {
+          const errorParts = [
+            `Row ${rowNumber}: Missing required field${missingFields.length > 1 ? 's' : ''}: ${missingFields.join(', ')}`
+          ];
+
+          if (presentFields.length > 0) {
+            errorParts.push(`Present: ${presentFields.join(', ')}`);
+          }
+
+          return {
+            name: name || `Row ${rowNumber}`,
             muscleGroup: muscleGroup || '',
             equipment: equipment || undefined,
             isValid: false,
-            error: 'Missing required fields'
+            error: errorParts.join('. ')
           };
         }
 
@@ -79,12 +131,26 @@ export default function FileUploader({ onUpload }: FileUploaderProps) {
       setPreview(parsed);
     } catch (error) {
       console.error('Error parsing file:', error);
+
+      let errorMessage = 'Failed to parse file. ';
+      if (error instanceof Error) {
+        if (error.message.includes('Unsupported file type')) {
+          errorMessage += 'Only CSV (.csv) and Excel (.xlsx, .xls) files are supported.';
+        } else if (error.message.includes('read')) {
+          errorMessage += 'Could not read the file. Please ensure it\'s not corrupted and try again.';
+        } else {
+          errorMessage += `Error: ${error.message}`;
+        }
+      } else {
+        errorMessage += 'Please check the file format and try again.';
+      }
+
       setPreview([{
-        name: 'Error',
+        name: 'File Parsing Error',
         muscleGroup: '',
         equipment: undefined,
         isValid: false,
-        error: 'Failed to parse file. Please check the format.'
+        error: errorMessage
       }]);
     }
   };
@@ -161,7 +227,33 @@ export default function FileUploader({ onUpload }: FileUploaderProps) {
                 {invalidCount} invalid
               </div>
             )}
+            <div className="text-white/40">
+              Total: {preview.length} row{preview.length !== 1 ? 's' : ''}
+            </div>
           </div>
+
+          {invalidCount > 0 && (
+            <div className="text-xs text-yellow-400 bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3">
+              <p className="font-medium mb-1">Issues found:</p>
+              <ul className="space-y-1">
+                {preview
+                  .map((exercise, index) => ({ exercise, index }))
+                  .filter(({ exercise }) => !exercise.isValid)
+                  .slice(0, 5) // Show first 5 errors
+                  .map(({ exercise, index }) => (
+                    <li key={index} className="text-yellow-300">
+                      • {exercise.error}
+                    </li>
+                  ))
+                }
+                {invalidCount > 5 && (
+                  <li className="text-yellow-400/60">
+                    ... and {invalidCount - 5} more issue{invalidCount - 5 !== 1 ? 's' : ''}
+                  </li>
+                )}
+              </ul>
+            </div>
+          )}
 
           <div className="max-h-64 overflow-y-auto space-y-2">
             {preview.map((exercise, index) => (

@@ -24,6 +24,23 @@ body {
   box-sizing: border-box;
 }
 
+/* Safe area utilities for mobile devices */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Ensure bottom navigation is always visible */
+@media (max-width: 768px) {
+  .bottom-nav-container {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 50;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+}
+
 /* Glass Morphism Effect */
 .glass-widget {
   background: rgba(255, 255, 255, 0.05);

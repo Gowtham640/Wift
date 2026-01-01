@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import Sidebar from "@/components/navigation/Sidebar";
 import BottomNav from "@/components/navigation/BottomNav";
+import NetworkStatus from "@/components/NetworkStatus";
 
 export const metadata: Metadata = {
   title: "Gym Tracker",
@@ -24,6 +25,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="antialiased">
+        <NetworkStatus />
         <div className="flex min-h-screen">
           <Sidebar />
           <main className="flex-1 min-h-screen p-4 md:p-8 md:ml-64 pb-24 md:pb-8">

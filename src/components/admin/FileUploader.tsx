@@ -5,8 +5,9 @@ import { Upload, CheckCircle, AlertCircle } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import GlassWidget from '@/components/ui/GlassWidget';
 import { type Exercise } from '@/lib/db';
+import * as XLSX from 'xlsx';
 
-interface CSVUploaderProps {
+interface FileUploaderProps {
   onUpload: (exercises: Omit<Exercise, 'id'>[]) => Promise<void>;
 }
 
@@ -18,7 +19,7 @@ interface ParsedExercise {
   error?: string;
 }
 
-export default function CSVUploader({ onUpload }: CSVUploaderProps) {
+export default function FileUploader({ onUpload }: FileUploaderProps) {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<ParsedExercise[]>([]);
   const [isUploading, setIsUploading] = useState(false);
@@ -28,34 +29,64 @@ export default function CSVUploader({ onUpload }: CSVUploaderProps) {
     if (!selectedFile) return;
 
     setFile(selectedFile);
-    const text = await selectedFile.text();
-    const lines = text.split('\n').filter(line => line.trim());
 
-    // Skip header if present
-    const dataLines = lines[0].toLowerCase().includes('name') ? lines.slice(1) : lines;
+    let data: string[][] = [];
 
-    const parsed: ParsedExercise[] = dataLines.map((line, index) => {
-      const [name, muscleGroup, equipment] = line.split(',').map(s => s.trim());
-
-      if (!name || !muscleGroup) {
-        return {
-          name: name || `Row ${index + 1}`,
-          muscleGroup: muscleGroup || '',
-          equipment,
-          isValid: false,
-          error: 'Missing required fields'
-        };
+    try {
+      if (selectedFile.name.toLowerCase().endsWith('.csv')) {
+        // Handle CSV files
+        const text = await selectedFile.text();
+        const lines = text.split('\n').filter(line => line.trim());
+        data = lines.map(line => line.split(',').map(s => s.trim()));
+      } else if (selectedFile.name.toLowerCase().endsWith('.xlsx') || selectedFile.name.toLowerCase().endsWith('.xls')) {
+        // Handle Excel files
+        const arrayBuffer = await selectedFile.arrayBuffer();
+        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
+        data = jsonData;
+      } else {
+        throw new Error('Unsupported file type. Please upload a CSV or Excel file.');
       }
 
-      return {
-        name,
-        muscleGroup,
-        equipment: equipment || undefined,
-        isValid: true
-      };
-    });
+      // Skip header if present (check if first row contains 'name')
+      const dataLines = data.length > 0 && data[0].some(cell => cell?.toString().toLowerCase().includes('name'))
+        ? data.slice(1)
+        : data;
 
-    setPreview(parsed);
+      const parsed: ParsedExercise[] = dataLines.map((row, index) => {
+        const [name, muscleGroup, equipment] = row.map(cell => cell?.toString().trim() || '');
+
+        if (!name || !muscleGroup) {
+          return {
+            name: name || `Row ${index + 1}`,
+            muscleGroup: muscleGroup || '',
+            equipment: equipment || undefined,
+            isValid: false,
+            error: 'Missing required fields'
+          };
+        }
+
+        return {
+          name,
+          muscleGroup,
+          equipment: equipment || undefined,
+          isValid: true
+        };
+      });
+
+      setPreview(parsed);
+    } catch (error) {
+      console.error('Error parsing file:', error);
+      setPreview([{
+        name: 'Error',
+        muscleGroup: '',
+        equipment: undefined,
+        isValid: false,
+        error: 'Failed to parse file. Please check the format.'
+      }]);
+    }
   };
 
   const handleUpload = async () => {
@@ -85,24 +116,27 @@ export default function CSVUploader({ onUpload }: CSVUploaderProps) {
 
   return (
     <GlassWidget className="p-6">
-      <h3 className="text-lg font-semibold text-white mb-4">Bulk Upload (CSV)</h3>
-      
+      <h3 className="text-lg font-semibold text-white mb-4">Bulk Upload (CSV/Excel)</h3>
+
       <div className="mb-4">
         <p className="text-sm text-white/60 mb-2">
-          CSV format: name, muscleGroup, equipment (optional)
+          Format: name, muscleGroup, equipment (optional)
+        </p>
+        <p className="text-xs text-white/40 mb-1">
+          CSV: Bench Press, Chest, Barbell
         </p>
         <p className="text-xs text-white/40">
-          Example: Bench Press, Chest, Barbell
+          Excel: Same columns in first sheet
         </p>
       </div>
 
       <div className="mb-4">
         <label className="btn btn-secondary cursor-pointer">
           <Upload size={20} />
-          Choose CSV File
+          Choose File
           <input
             type="file"
-            accept=".csv"
+            accept=".csv,.xlsx,.xls"
             onChange={handleFileChange}
             className="hidden"
           />
@@ -166,4 +200,3 @@ export default function CSVUploader({ onUpload }: CSVUploaderProps) {
     </GlassWidget>
   );
 }
-

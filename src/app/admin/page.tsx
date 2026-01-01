@@ -8,7 +8,7 @@ import GlassWidget from '@/components/ui/GlassWidget';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
 import ExerciseForm from '@/components/admin/ExerciseForm';
-import CSVUploader from '@/components/admin/CSVUploader';
+import FileUploader from '@/components/admin/FileUploader';
 import SearchInput from '@/components/ui/SearchInput';
 import Input from '@/components/ui/Input';
 import { type Exercise } from '@/lib/db';
@@ -151,7 +151,7 @@ export default function AdminPage() {
         </div>
 
         <div>
-          <CSVUploader onUpload={handleBulkUpload} />
+          <FileUploader onUpload={handleBulkUpload} />
         </div>
       </div>
 

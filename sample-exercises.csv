@@ -1,0 +1,42 @@
+name,muscleGroup,equipment
+Bench Press,Chest,Barbell
+Incline Bench Press,Chest,Barbell
+Dumbbell Flyes,Chest,Dumbbell
+Push-ups,Chest,Bodyweight
+Cable Crossover,Chest,Cable
+Squat,Legs,Barbell
+Leg Press,Legs,Machine
+Lunges,Legs,Bodyweight
+Leg Extension,Legs,Machine
+Leg Curl,Legs,Machine
+Deadlift,Back,Barbell
+Pull-ups,Back,Bodyweight
+Barbell Row,Back,Barbell
+Lat Pulldown,Back,Cable
+Seated Cable Row,Back,Cable
+Overhead Press,Shoulders,Barbell
+Lateral Raise,Shoulders,Dumbbell
+Front Raise,Shoulders,Dumbbell
+Face Pull,Shoulders,Cable
+Shrugs,Shoulders,Dumbbell
+Bicep Curl,Biceps,Dumbbell
+Hammer Curl,Biceps,Dumbbell
+Preacher Curl,Biceps,Machine
+Cable Curl,Biceps,Cable
+Tricep Dips,Triceps,Bodyweight
+Tricep Pushdown,Triceps,Cable
+Overhead Extension,Triceps,Dumbbell
+Close Grip Bench,Triceps,Barbell
+Plank,Core,Bodyweight
+Crunches,Core,Bodyweight
+Russian Twist,Core,Bodyweight
+Leg Raises,Core,Bodyweight
+Cable Crunch,Core,Cable
+Hip Thrust,Glutes,Barbell
+Glute Bridge,Glutes,Bodyweight
+Bulgarian Split Squat,Glutes,Dumbbell
+Calf Raise,Calves,Machine
+Seated Calf Raise,Calves,Machine
+Wrist Curl,Forearms,Dumbbell
+Reverse Wrist Curl,Forearms,Dumbbell
+

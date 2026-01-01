@@ -24,6 +24,7 @@ export default function ExerciseCard({
 }: ExerciseCardProps) {
   const { sets, addSet, updateSet, deleteSet } = useSets(workoutExerciseId);
   const [firstSetValues, setFirstSetValues] = useState<{ weight: number; reps: number } | null>(null);
+  const [deleteMode, setDeleteMode] = useState(false);
 
   const currentVolume = sets ? calculateTotalVolume(sets) : 0;
   const volumeIncrease = calculateVolumeIncrease(currentVolume, previousVolume);
@@ -81,7 +82,7 @@ export default function ExerciseCard({
               previousBest={getDefaultValues(index)}
               onUpdate={(updates) => updateSet(set.id!, updates)}
             />
-            {sets.length > 1 && (
+            {deleteMode && sets.length > 1 && (
               <button
                 onClick={() => handleDeleteSet(set.id!)}
                 className="p-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 transition-colors"
@@ -92,13 +93,25 @@ export default function ExerciseCard({
           </div>
         ))}
 
-        <button
-          onClick={handleAddSet}
-          className="w-full btn btn-secondary mt-2"
-        >
-          <Plus size={16} />
-          Add Set
-        </button>
+        <div className="flex gap-2 mt-2">
+          <button
+            onClick={handleAddSet}
+            className="flex-1 btn btn-secondary"
+          >
+            <Plus size={16} />
+            Add Set
+          </button>
+
+          {sets && sets.length > 1 && (
+            <button
+              onClick={() => setDeleteMode(!deleteMode)}
+              className={`flex-1 btn ${deleteMode ? 'btn-danger' : 'btn-secondary'}`}
+            >
+              <Trash2 size={16} />
+              {deleteMode ? 'Done' : 'Remove'}
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="mt-4 pt-4 border-t border-white/10">

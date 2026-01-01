@@ -6,6 +6,7 @@ import GlassWidget from '@/components/ui/GlassWidget';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/lib/db';
 import { TimePeriod, getDateRangeForPeriod } from './TimeFilter';
+import { getLocalDateString } from '@/lib/utils';
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
@@ -25,7 +26,7 @@ export default function WorkoutFrequencyChart({
     // Get unique workout days in the period
     const workouts = await db.workouts
       .where('date')
-      .between(startDate.toISOString().split('T')[0], endDate.toISOString().split('T')[0])
+      .between(getLocalDateString(startDate), getLocalDateString(endDate))
       .toArray();
 
     const uniqueWorkoutDays = new Set(workouts.map(w => w.date)).size;

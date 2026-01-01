@@ -6,6 +6,7 @@ import GlassWidget from '@/components/ui/GlassWidget';
 import TimeFilter, { TimePeriod, getDateRangeForPeriod } from './TimeFilter';
 import { useState } from 'react';
 import { Dumbbell } from 'lucide-react';
+import { getLocalDateString } from '@/lib/utils';
 
 interface MuscleGroupSets {
   muscleGroup: string;
@@ -24,7 +25,7 @@ export default function MuscleGroupsBySets({ timePeriod }: MuscleGroupsBySetsPro
 
     const workouts = await db.workouts
       .where('date')
-      .between(startDate.toISOString().split('T')[0], endDate.toISOString().split('T')[0])
+      .between(getLocalDateString(startDate), getLocalDateString(endDate))
       .toArray();
 
     const muscleGroupSets: { [key: string]: number } = {};

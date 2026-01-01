@@ -1,17 +1,8 @@
-import type { NextConfig } from "next";
-// @ts-ignore
-import withPWA from "next-pwa";
-
-const nextConfig: NextConfig = {
-  /* config options here */
-  turbopack: {},
-};
-
-export default withPWA({
+const withPWA = require("next-pwa")({
   dest: "public",
-  disable: process.env.NODE_ENV === "development",
   register: true,
   skipWaiting: true,
+  disable: process.env.NODE_ENV === "development",
   // Offline fallbacks for true offline-first experience
   fallbacks: {
     document: '/',
@@ -20,7 +11,7 @@ export default withPWA({
   runtimeCaching: [
     {
       // Handle navigation requests with longer timeout for better offline experience
-      urlPattern: ({ request }: { request: Request }) => request.mode === 'navigate',
+      urlPattern: ({ request }) => request.mode === 'navigate',
       handler: 'NetworkFirst',
       options: {
         cacheName: 'pages',
@@ -68,4 +59,10 @@ export default withPWA({
       }
     }
   ]
-})(nextConfig);
+});
+
+const nextConfig = {
+  turbopack: {},
+};
+
+module.exports = withPWA(nextConfig);

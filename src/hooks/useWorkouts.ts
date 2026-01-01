@@ -1,7 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type Workout, type WorkoutExercise, type Set } from '@/lib/db';
 import type { WorkoutWithDetails, WorkoutExerciseWithDetails } from '@/lib/types';
-import { calculateTotalVolume } from '@/lib/utils';
+import { calculateTotalVolume, getTodayString } from '@/lib/utils';
 
 export function useWorkouts() {
   const workouts = useLiveQuery(async () => {
@@ -11,7 +11,7 @@ export function useWorkouts() {
   const createWorkout = async (routineId?: number) => {
     const workoutId = await db.workouts.add({
       routineId,
-      date: new Date().toISOString().split('T')[0],
+      date: getTodayString(),
       startTime: Date.now()
     });
 

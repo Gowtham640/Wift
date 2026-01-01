@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, Calendar, Flame } from 'lucide-react';
 import GlassWidget from '@/components/ui/GlassWidget';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/lib/db';
+import { getTodayString } from '@/lib/utils';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -26,25 +27,31 @@ export default function WorkoutCalendar() {
 
     const allWorkouts = await db.workouts
       .where('date')
-      .between(ninetyDaysAgo.toISOString().split('T')[0], new Date().toISOString().split('T')[0])
+      .between(
+        `${ninetyDaysAgo.getFullYear()}-${String(ninetyDaysAgo.getMonth() + 1).padStart(2, '0')}-${String(ninetyDaysAgo.getDate()).padStart(2, '0')}`,
+        getTodayString()
+      )
       .sortBy('date');
 
     // Get workouts for current month
     const monthWorkouts = await db.workouts
       .where('date')
-      .between(startOfMonth.toISOString().split('T')[0], endOfMonth.toISOString().split('T')[0])
+      .between(
+        `${startOfMonth.getFullYear()}-${String(startOfMonth.getMonth() + 1).padStart(2, '0')}-${String(startOfMonth.getDate()).padStart(2, '0')}`,
+        `${endOfMonth.getFullYear()}-${String(endOfMonth.getMonth() + 1).padStart(2, '0')}-${String(endOfMonth.getDate()).padStart(2, '0')}`
+      )
       .toArray();
 
     const workoutDateSet = new Set(monthWorkouts.map(w => w.date));
 
     // Calculate current streak
     let currentStreak = 0;
-    const today = new Date().toISOString().split('T')[0];
-    let checkDate = new Date(today);
+    const today = getTodayString();
+    let checkDate = new Date();
 
     // Check consecutive days backwards from today
     for (let i = 0; i < 365; i++) { // Max 1 year back
-      const dateString = checkDate.toISOString().split('T')[0];
+      const dateString = `${checkDate.getFullYear()}-${String(checkDate.getMonth() + 1).padStart(2, '0')}-${String(checkDate.getDate()).padStart(2, '0')}`;
       const hasWorkout = allWorkouts.some(w => w.date === dateString);
 
       if (hasWorkout) {
@@ -63,7 +70,7 @@ export default function WorkoutCalendar() {
       const workoutDate = new Date(workout.date);
       const nextDay = new Date(workoutDate);
       nextDay.setDate(nextDay.getDate() + 1);
-      const nextDayString = nextDay.toISOString().split('T')[0];
+      const nextDayString = `${nextDay.getFullYear()}-${String(nextDay.getMonth() + 1).padStart(2, '0')}-${String(nextDay.getDate()).padStart(2, '0')}`;
 
       const hasNextDay = allWorkouts.some(w => w.date === nextDayString);
 
@@ -121,7 +128,7 @@ export default function WorkoutCalendar() {
   };
 
   const hasWorkout = (date: Date) => {
-    const dateString = date.toISOString().split('T')[0];
+    const dateString = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
     return calendarData?.workoutDates.has(dateString) || false;
   };
 

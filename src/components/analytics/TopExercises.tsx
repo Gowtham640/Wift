@@ -6,6 +6,7 @@ import GlassWidget from '@/components/ui/GlassWidget';
 import TimeFilter, { TimePeriod, getDateRangeForPeriod } from './TimeFilter';
 import { useState } from 'react';
 import { TrendingUp, Award } from 'lucide-react';
+import { getLocalDateString } from '@/lib/utils';
 
 interface TopExercise {
   exerciseId: number;
@@ -28,7 +29,7 @@ export default function TopExercises({ timePeriod }: TopExercisesProps) {
 
     const workouts = await db.workouts
       .where('date')
-      .between(startDate.toISOString().split('T')[0], endDate.toISOString().split('T')[0])
+      .between(getLocalDateString(startDate), getLocalDateString(endDate))
       .toArray();
 
     const exerciseStats: { [key: number]: TopExercise } = {};

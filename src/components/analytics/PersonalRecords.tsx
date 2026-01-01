@@ -5,6 +5,7 @@ import { db } from '@/lib/db';
 import GlassWidget from '@/components/ui/GlassWidget';
 import { TimePeriod, getDateRangeForPeriod } from './TimeFilter';
 import { Trophy, TrendingUp } from 'lucide-react';
+import { getLocalDateString } from '@/lib/utils';
 
 interface PersonalRecord {
   exerciseId: number;
@@ -26,7 +27,7 @@ export default function PersonalRecords({ timePeriod }: PersonalRecordsProps) {
 
     const workouts = await db.workouts
       .where('date')
-      .between(startDate.toISOString().split('T')[0], endDate.toISOString().split('T')[0])
+      .between(getLocalDateString(startDate), getLocalDateString(endDate))
       .toArray();
 
     const workoutIds = workouts.map(w => w.id!);

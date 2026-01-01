@@ -16,6 +16,7 @@ import TimeFilter, { TimePeriod, getDateRangeForPeriod } from './TimeFilter';
 import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/lib/db';
+import { getLocalDateString } from '@/lib/utils';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend);
 
@@ -36,7 +37,7 @@ export default function WeightChart({ timePeriod }: WeightChartProps) {
     const { startDate, endDate } = getDateRangeForPeriod(timePeriod);
     const workouts = await db.workouts
       .where('date')
-      .between(startDate.toISOString().split('T')[0], endDate.toISOString().split('T')[0])
+      .between(getLocalDateString(startDate), getLocalDateString(endDate))
       .sortBy('date');
 
     // Get profile for current weight

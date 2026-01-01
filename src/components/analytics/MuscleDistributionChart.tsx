@@ -16,6 +16,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/lib/db';
 import { TimePeriod, getDateRangeForPeriod } from './TimeFilter';
 import type { MuscleGroupVolume } from '@/lib/types';
+import { getLocalDateString } from '@/lib/utils';
 
 ChartJS.register(RadialLinearScale, PointElement, LineElement, Filler, Title, Tooltip, Legend);
 
@@ -31,7 +32,7 @@ export default function MuscleDistributionChart({
 
     const workouts = await db.workouts
       .where('date')
-      .between(startDate.toISOString().split('T')[0], endDate.toISOString().split('T')[0])
+      .between(getLocalDateString(startDate), getLocalDateString(endDate))
       .toArray();
 
     const muscleVolumes: { [key: string]: number } = {};

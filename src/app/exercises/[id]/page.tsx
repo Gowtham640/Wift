@@ -8,7 +8,7 @@ import { db } from '@/lib/db';
 import { ArrowLeft, TrendingUp, Award, Calendar, Activity } from 'lucide-react';
 import GlassWidget from '@/components/ui/GlassWidget';
 import Button from '@/components/ui/Button';
-import { formatDate } from '@/lib/utils';
+import { formatDate, getLocalDateString } from '@/lib/utils';
 import TimeFilter, { TimePeriod, getDateRangeForPeriod } from '@/components/analytics/TimeFilter';
 import type { ExerciseHistory } from '@/lib/types';
 import {
@@ -50,7 +50,7 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
     // Get workouts within the selected time period
     const workoutsInPeriod = await db.workouts
       .where('date')
-      .between(startDate.toISOString().split('T')[0], endDate.toISOString().split('T')[0])
+      .between(getLocalDateString(startDate), getLocalDateString(endDate))
       .toArray();
 
     const workoutIds = workoutsInPeriod.map(w => w.id!);

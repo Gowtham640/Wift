@@ -33,7 +33,7 @@ export default function SetRow({ setNumber, set, previousBest, onUpdate }: SetRo
         value={set.weight || ''}
         onChange={(e) => onUpdate({ weight: parseFloat(e.target.value) || 0 })}
         placeholder="kg"
-        className="text-center"
+        className="text-center px-1 py-1"
         min="0"
         step="0.5"
       />
@@ -43,7 +43,7 @@ export default function SetRow({ setNumber, set, previousBest, onUpdate }: SetRo
         value={set.reps || ''}
         onChange={(e) => onUpdate({ reps: parseInt(e.target.value) || 0 })}
         placeholder="reps"
-        className="text-center"
+        className="text-center px-1 py-1"
         min="0"
         step="1"
       />

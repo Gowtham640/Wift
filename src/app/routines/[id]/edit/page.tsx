@@ -1,8 +1,7 @@
 'use client';
 
-import { use } from 'react';
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useMemo } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
 import { useRoutine } from '@/hooks/useRoutines';
 import { useExercises } from '@/hooks/useExercises';
 import { MUSCLE_GROUPS, EQUIPMENT_TYPES } from '@/lib/types';
@@ -11,18 +10,26 @@ import GlassWidget from '@/components/ui/GlassWidget';
 import Button from '@/components/ui/Button';
 import SearchInput from '@/components/ui/SearchInput';
 
-export default function EditRoutinePage({ params }: { params: Promise<{ id: string }> }) {
-  const resolvedParams = use(params);
-  const routineId = parseInt(resolvedParams.id);
+export default function EditRoutinePage() {
   const router = useRouter();
-  const { routine, addExerciseToRoutine, removeExerciseFromRoutine } = useRoutine(routineId);
+  const pathname = usePathname();
+
+  const routineId = useMemo(() => {
+    const pathParts = pathname.split('/');
+    const idPart = pathParts[pathParts.length - 2]; // Get [id] part before /edit
+    return idPart ? parseInt(idPart) : null;
+  }, [pathname]);
+
+  const { routine, loading, addExerciseToRoutine, removeExerciseFromRoutine } = useRoutine(routineId);
   const [search, setSearch] = useState('');
   const [muscleGroup, setMuscleGroup] = useState<string>('');
   const [equipment, setEquipment] = useState<string>('');
   const { exercises: allExercises } = useExercises({ search, muscleGroup, equipment });
 
   const handleAddExercise = async (exerciseId: number) => {
-    await addExerciseToRoutine(routineId, exerciseId);
+    if (routineId !== null) {
+      await addExerciseToRoutine(routineId, exerciseId);
+    }
   };
 
   const handleRemoveExercise = async (routineExerciseId: number) => {
@@ -38,6 +45,28 @@ export default function EditRoutinePage({ params }: { params: Promise<{ id: stri
   };
 
   const hasFilters = search || muscleGroup || equipment;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <p className="text-white/40">Loading routine...</p>
+      </div>
+    );
+  }
+
+  if (!routine) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <h2 className="text-xl font-bold text-white mb-2">Routine Not Found</h2>
+          <p className="text-white/60 mb-4">This routine doesn't exist or has been deleted.</p>
+          <Button onClick={() => router.push('/routines')} variant="primary">
+            Go to Routines
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   const routineExerciseIds = routine?.exercises.map(e => e.id) || [];
   const availableExercises = allExercises?.filter(e => !routineExerciseIds.includes(e.id)) || [];

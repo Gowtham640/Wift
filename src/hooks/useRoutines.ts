@@ -53,8 +53,10 @@ export function useRoutines(search?: string) {
   };
 }
 
-export function useRoutine(id: number) {
+export function useRoutine(id: number | null) {
   const routine = useLiveQuery(async () => {
+    if (id === null) return null;
+
     const routine = await db.routines.get(id);
     if (!routine) return null;
 
@@ -112,6 +114,7 @@ export function useRoutine(id: number) {
 
   return {
     routine,
+    loading: routine === undefined,
     addExerciseToRoutine,
     removeExerciseFromRoutine,
     reorderExercises

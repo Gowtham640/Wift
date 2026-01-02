@@ -1,7 +1,7 @@
 'use client';
 
-import { use, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useMemo } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
 import { useExercise } from '@/hooks/useExercises';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/lib/db';
@@ -35,11 +35,15 @@ ChartJS.register(
   BarElement
 );
 
-export default function ExerciseDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const resolvedParams = use(params);
-  const exerciseId = parseInt(resolvedParams.id);
+export default function ExerciseDetailPage() {
   const router = useRouter();
-  const exercise = useExercise(exerciseId);
+  const pathname = usePathname();
+
+  const exerciseId = useMemo(() => {
+    const id = pathname.split('/').pop();
+    return id ? parseInt(id) : null;
+  }, [pathname]);
+  const { exercise, loading } = useExercise(exerciseId);
   const [selectedTimePeriod, setSelectedTimePeriod] = useState<TimePeriod>('month');
 
   const history = useLiveQuery(async () => {
@@ -89,10 +93,24 @@ export default function ExerciseDetailPage({ params }: { params: Promise<{ id: s
       .sort((a, b) => b.date.localeCompare(a.date));
   }, [exerciseId, exercise, selectedTimePeriod]);
 
-  if (!exercise) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <p className="text-white/40">Loading exercise...</p>
+      </div>
+    );
+  }
+
+  if (!exercise) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <h2 className="text-xl font-bold text-white mb-2">Exercise Not Found</h2>
+          <p className="text-white/60 mb-4">This exercise doesn't exist or has been deleted.</p>
+          <Button onClick={() => router.push('/exercises')} variant="primary">
+            Go to Exercises
+          </Button>
+        </div>
       </div>
     );
   }

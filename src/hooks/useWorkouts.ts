@@ -63,8 +63,10 @@ export function useWorkouts() {
   };
 }
 
-export function useWorkout(id: number) {
+export function useWorkout(id: number | null) {
   const workout = useLiveQuery(async () => {
+    if (id === null) return null;
+
     const workout = await db.workouts.get(id);
     if (!workout) return null;
 
@@ -166,6 +168,7 @@ export function useWorkout(id: number) {
 
   return {
     workout,
+    loading: workout === undefined,
     addExerciseToWorkout,
     completeWorkout
   };

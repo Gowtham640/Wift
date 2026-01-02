@@ -1,7 +1,7 @@
 'use client';
 
-import { use, useState, useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useState, useEffect, useMemo } from 'react';
+import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { useWorkout, useWorkouts } from '@/hooks/useWorkouts';
 import { ArrowLeft, Check, Clock, Plus } from 'lucide-react';
 import Button from '@/components/ui/Button';
@@ -9,16 +9,20 @@ import ExerciseCard from '@/components/workout/ExerciseCard';
 import GlassWidget from '@/components/ui/GlassWidget';
 import { formatDuration } from '@/lib/utils';
 
-export default function WorkoutPage({ params }: { params: Promise<{ id: string }> }) {
-  const resolvedParams = use(params);
-  const workoutId = resolvedParams.id === 'new' ? null : parseInt(resolvedParams.id);
+export default function WorkoutPage() {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const routineId = searchParams.get('routineId');
 
+  const workoutId = useMemo(() => {
+    const id = pathname.split('/').pop();
+    return id === 'new' ? null : id ? parseInt(id) : null;
+  }, [pathname]);
+
   const { createWorkout } = useWorkouts();
   const [currentWorkoutId, setCurrentWorkoutId] = useState<number | null>(workoutId);
-  const { workout, completeWorkout, addExerciseToWorkout } = useWorkout(currentWorkoutId!);
+  const { workout, loading, completeWorkout, addExerciseToWorkout } = useWorkout(currentWorkoutId);
   const [elapsedTime, setElapsedTime] = useState(0);
 
   useEffect(() => {
@@ -50,10 +54,24 @@ export default function WorkoutPage({ params }: { params: Promise<{ id: string }
     }
   };
 
-  if (!workout) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <p className="text-white/40">Loading workout...</p>
+      </div>
+    );
+  }
+
+  if (!workout) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <h2 className="text-xl font-bold text-white mb-2">Workout Not Found</h2>
+          <p className="text-white/60 mb-4">This workout doesn't exist or has been deleted.</p>
+          <Button onClick={() => router.push('/')} variant="primary">
+            Go to Dashboard
+          </Button>
+        </div>
       </div>
     );
   }

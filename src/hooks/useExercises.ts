@@ -64,8 +64,11 @@ export function useExercises(filters?: {
   };
 }
 
-export function useExercise(id: number) {
-  const exercise = useLiveQuery(() => db.exercises.get(id), [id]);
-  return exercise;
+export function useExercise(id: number | null) {
+  const exercise = useLiveQuery(() => id ? db.exercises.get(id) : undefined, [id]);
+  return {
+    exercise,
+    loading: exercise === undefined
+  };
 }
 

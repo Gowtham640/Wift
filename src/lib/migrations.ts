@@ -53,3 +53,4 @@ export async function runDataMigrations(): Promise<void> {
   await migrateWorkoutDatesToLocal();
   // Add future migrations here
 }
+

@@ -2,11 +2,12 @@ module.exports = {
   // Look in the Next.js build output directory
   globDirectory: '.next',
 
-  // Only cache JS and CSS chunks, exclude source maps
+  // Only cache JS and CSS chunks needed for offline boot, exclude source maps
   globPatterns: [
-    'static/chunks/*.js',
-    'static/chunks/*.css',
-    '!static/chunks/*.map'
+    'static/chunks/**/*.js',   // Framework, main, app router client chunks
+    'static/chunks/**/*.css',  // CSS chunks
+    'static/css/**/*.css',     // Additional CSS files
+    '!**/*.map'                // Exclude source maps
   ],
 
   // Source SW file (will be modified in-place)

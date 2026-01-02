@@ -1,14 +1,79 @@
 import { Clock, Dumbbell, TrendingUp } from 'lucide-react';
 import GlassWidget from '@/components/ui/GlassWidget';
-import { type WorkoutWithDetails } from '@/lib/types';
 import { formatDate, formatDuration } from '@/lib/utils';
 import Link from 'next/link';
+import { useLiveQuery } from 'dexie-react-hooks';
+import { db } from '@/lib/db';
 
-interface LatestWorkoutWidgetProps {
-  workout: WorkoutWithDetails | null;
-}
+export default function LatestWorkoutWidget() {
+  // Handle data loading internally to avoid blocking page render
+  const workout = useLiveQuery(async () => {
+    const workout = await db.workouts.orderBy('date').reverse().first();
+    if (!workout) return null;
 
-export default function LatestWorkoutWidget({ workout }: LatestWorkoutWidgetProps) {
+    const routine = workout.routineId
+      ? await db.routines.get(workout.routineId)
+      : undefined;
+
+    const workoutExercises = await db.workout_exercises
+      .where('workoutId')
+      .equals(workout.id!)
+      .sortBy('order');
+
+    const exercisesWithDetails = await Promise.all(
+      workoutExercises.map(async (we) => {
+        const exercise = await db.exercises.get(we.exerciseId);
+        const sets = await db.sets
+          .where('workoutExerciseId')
+          .equals(we.id!)
+          .toArray();
+
+        return {
+          workoutExercise: we,
+          exercise: exercise!,
+          sets
+        };
+      })
+    );
+
+    const totalVolume = exercisesWithDetails.reduce(
+      (sum, ex) =>
+        sum +
+        ex.sets
+          .filter((s) => s.completed)
+          .reduce((vol, s) => vol + s.weight * s.reps, 0),
+      0
+    );
+
+    const result = {
+      workout,
+      routine,
+      exercises: exercisesWithDetails,
+      totalVolume,
+      duration: workout.endTime ? workout.endTime - workout.startTime : undefined
+    };
+
+    return result;
+  }, []);
+
+  // Show loading skeleton immediately
+  if (workout === undefined) {
+    return (
+      <GlassWidget widgetId="dashboard-latest-workout" showGlow allowColorChange className="p-4 md:p-6">
+        <h2 className="text-lg md:text-xl font-bold text-white mb-3 md:mb-4">Latest Workout</h2>
+        <div className="animate-pulse space-y-3">
+          <div className="h-4 bg-white/20 rounded w-3/4"></div>
+          <div className="h-3 bg-white/10 rounded w-1/2"></div>
+          <div className="grid grid-cols-3 gap-4 pt-4">
+            <div className="h-12 bg-white/10 rounded"></div>
+            <div className="h-12 bg-white/10 rounded"></div>
+            <div className="h-12 bg-white/10 rounded"></div>
+          </div>
+        </div>
+      </GlassWidget>
+    );
+  }
+
   if (!workout) {
     return (
       <GlassWidget widgetId="dashboard-latest-workout" showGlow allowColorChange className="p-4 md:p-6">

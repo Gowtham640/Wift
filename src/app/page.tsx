@@ -3,8 +3,6 @@
 import { useEffect } from 'react';
 import { useProfile } from '@/hooks/useProfile';
 import { useWorkouts } from '@/hooks/useWorkouts';
-import { useLiveQuery } from 'dexie-react-hooks';
-import { db } from '@/lib/db';
 import { Activity, User, Ruler, Scale } from 'lucide-react';
 import CalendarWidget from '@/components/dashboard/CalendarWidget';
 import MetricWidget from '@/components/dashboard/MetricWidget';
@@ -19,52 +17,6 @@ export default function DashboardPage() {
     initializeProfile();
   }, []);
 
-  const latestWorkout = useLiveQuery(async () => {
-    const workout = await db.workouts.orderBy('date').reverse().first();
-    if (!workout) return null;
-
-    const routine = workout.routineId
-      ? await db.routines.get(workout.routineId)
-      : undefined;
-
-    const workoutExercises = await db.workout_exercises
-      .where('workoutId')
-      .equals(workout.id!)
-      .sortBy('order');
-
-    const exercisesWithDetails = await Promise.all(
-      workoutExercises.map(async (we) => {
-        const exercise = await db.exercises.get(we.exerciseId);
-        const sets = await db.sets
-          .where('workoutExerciseId')
-          .equals(we.id!)
-          .toArray();
-
-        return {
-          workoutExercise: we,
-          exercise: exercise!,
-          sets
-        };
-      })
-    );
-
-    const totalVolume = exercisesWithDetails.reduce(
-      (sum, ex) =>
-        sum +
-        ex.sets
-          .filter((s) => s.completed)
-          .reduce((vol, s) => vol + s.weight * s.reps, 0),
-      0
-    );
-
-    return {
-      workout,
-      routine,
-      exercises: exercisesWithDetails,
-      totalVolume,
-      duration: workout.endTime ? workout.endTime - workout.startTime : undefined
-    };
-  });
 
   const workoutDates = workouts?.map((w) => w.date) || [];
   const bmi = profile ? calculateBMI(profile.weightKg, profile.heightCm) : 0;
@@ -122,7 +74,7 @@ export default function DashboardPage() {
         />
 
         <div className="col-span-2 lg:col-span-1">
-          <LatestWorkoutWidget workout={latestWorkout || null} />
+          <LatestWorkoutWidget />
           {/* Invisible spacer to push content above BottomNav overlay */}
           <div className="h-20 md:hidden" aria-hidden="true" />
         </div>

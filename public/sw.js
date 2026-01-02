@@ -1,7 +1,7 @@
 // Single Service Worker - Clean offline-first implementation
 importScripts('https://storage.googleapis.com/workbox-cdn/releases/6.5.4/workbox-sw.js');
 
-const CACHE_VERSION = 'v1.0.0';
+const CACHE_VERSION = 'v1.1.0';
 const CACHE_NAMES = {
   pages: `pages-${CACHE_VERSION}`,
   staticAssets: `static-assets-${CACHE_VERSION}`,
@@ -53,23 +53,39 @@ if (workbox) {
     }
   });
 
-  // CRITICAL: Navigation strategy - NetworkFirst with cache fallback
-  // This allows Next.js to handle routing properly while enabling offline access
-  // Let navigation fail naturally if not cached - no offline.html hijacking
+  // CRITICAL: Start URL "/" - NetworkFirst, NO offline.html fallback
+  // Essential for PWA cold-start - must always attempt to load the app
   workbox.routing.registerRoute(
-    ({ request }) => request.mode === 'navigate',
+    ({ request, url }) => request.mode === 'navigate' && url.pathname === '/',
     new workbox.strategies.NetworkFirst({
       cacheName: CACHE_NAMES.pages,
-      networkTimeoutSeconds: 3, // Quick timeout for navigation
+      networkTimeoutSeconds: 3,
+    })
+  );
+
+  // Other navigation pages - NetworkFirst, WITH offline.html fallback
+  // For pages not cached, show offline.html instead of breaking
+  workbox.routing.registerRoute(
+    ({ request, url }) => request.mode === 'navigate' && url.pathname !== '/',
+    new workbox.strategies.NetworkFirst({
+      cacheName: CACHE_NAMES.pages,
+      networkTimeoutSeconds: 3,
       plugins: [
         new workbox.cacheableResponse.CacheableResponsePlugin({
           statuses: [0, 200]
         }),
         new workbox.expiration.ExpirationPlugin({
           maxEntries: 50,
-          maxAgeSeconds: 24 * 60 * 60 // 24 hours
-        })
-        // ❌ REMOVED: handlerDidError - let navigation fail if not cached
+          maxAgeSeconds: 24 * 60 * 60
+        }),
+        // ✅ Fallback to offline.html for non-start navigation
+        {
+          handlerDidError: async () => {
+            const cache = await caches.open(CACHE_NAMES.pages);
+            const offlineResponse = await cache.match('/offline.html');
+            return offlineResponse || new Response('Offline page not available', { status: 503 });
+          }
+        }
       ]
     })
   );

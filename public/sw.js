@@ -15,6 +15,12 @@ if (workbox) {
   // Install event - service worker installation
   self.addEventListener('install', (event) => {
     console.log('🚀 Service Worker installing');
+    event.waitUntil(
+      caches.open(CACHE_NAMES.pages).then(cache => {
+        console.log('📦 Precaching start URL /');
+        return cache.add('/');
+      })
+    );
     self.skipWaiting();
   });
 

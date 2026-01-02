@@ -12,14 +12,9 @@ const CACHE_NAMES = {
 if (workbox) {
   workbox.setConfig({ debug: false });
 
-  // Install event - precache essential assets
+  // Install event - service worker installation
   self.addEventListener('install', (event) => {
     console.log('🚀 Service Worker installing');
-    event.waitUntil(
-      caches.open(CACHE_NAMES.pages).then(cache => {
-        return cache.add('/offline.html');
-      })
-    );
     self.skipWaiting();
   });
 
@@ -54,6 +49,7 @@ if (workbox) {
 
   // CRITICAL: Navigation strategy - NetworkFirst with cache fallback
   // This allows Next.js to handle routing properly while enabling offline access
+  // Let navigation fail naturally if not cached - no offline.html hijacking
   workbox.routing.registerRoute(
     ({ request }) => request.mode === 'navigate',
     new workbox.strategies.NetworkFirst({
@@ -66,8 +62,28 @@ if (workbox) {
         new workbox.expiration.ExpirationPlugin({
           maxEntries: 50,
           maxAgeSeconds: 24 * 60 * 60 // 24 hours
+        })
+        // ❌ REMOVED: handlerDidError - let navigation fail if not cached
+      ]
+    })
+  );
+
+  // Document requests (not navigation) - NetworkFirst with offline.html fallback
+  // For images/documents opened outside PWA, direct fetch requests, etc.
+  workbox.routing.registerRoute(
+    ({ request }) => request.destination === 'document' && request.mode !== 'navigate',
+    new workbox.strategies.NetworkFirst({
+      cacheName: CACHE_NAMES.pages,
+      networkTimeoutSeconds: 3,
+      plugins: [
+        new workbox.cacheableResponse.CacheableResponsePlugin({
+          statuses: [0, 200]
         }),
-        // Fallback to offline page when both network and cache fail
+        new workbox.expiration.ExpirationPlugin({
+          maxEntries: 50,
+          maxAgeSeconds: 24 * 60 * 60
+        }),
+        // ✅ Fallback to offline.html for document requests (not navigation)
         {
           handlerDidError: async () => {
             const cache = await caches.open(CACHE_NAMES.pages);

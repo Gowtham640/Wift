@@ -10,6 +10,7 @@ import { getLocalDateString } from '@/lib/utils';
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
+
 interface WorkoutFrequencyChartProps {
   timePeriod: TimePeriod;
 }
@@ -22,43 +23,28 @@ export default function WorkoutFrequencyChart({
     return await db.workouts.count(); // Changes when workouts are added/deleted
   });
 
-  const workoutStats = useLiveQuery(async () => {
+  const workoutCount = useLiveQuery(async () => {
     const { startDate, endDate } = getDateRangeForPeriod(timePeriod);
 
-    // Calculate total days in the period
-    const totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+    // Get all workouts first, then filter by date and completion (same as debugAnalytics)
+    const allWorkouts = await db.workouts.toArray();
 
-    // Get unique workout days in the period (only completed workouts)
-    const allWorkouts = await db.workouts
-      .where('date')
-      .between(getLocalDateString(startDate), getLocalDateString(endDate))
-      .toArray();
+    const completedWorkouts = allWorkouts.filter(workout =>
+      workout.endTime !== undefined &&
+      workout.date >= getLocalDateString(startDate) &&
+      workout.date <= getLocalDateString(endDate)
+    );
 
-    const workouts = allWorkouts.filter(workout => workout.endTime !== undefined);
-
-    const uniqueWorkoutDays = new Set(workouts.map(w => w.date)).size;
-    const restDays = Math.max(0, totalDays - uniqueWorkoutDays);
-
-    return {
-      workoutDays: uniqueWorkoutDays,
-      restDays: restDays,
-      totalDays: totalDays
-    };
+    return completedWorkouts.length;
   }, [timePeriod, deletionTracker]); // Include deletionTracker in dependencies
 
   const data = {
-    labels: ['Workout Days', 'Rest Days'],
+    labels: ['Workouts'],
     datasets: [
       {
-        data: [workoutStats?.workoutDays || 0, workoutStats?.restDays || 0],
-        backgroundColor: [
-          'rgba(255, 255, 255, 0.8)',
-          'rgba(255, 255, 255, 0.1)'
-        ],
-        borderColor: [
-          'rgba(255, 255, 255, 1)',
-          'rgba(255, 255, 255, 0.2)'
-        ],
+        data: [workoutCount || 0],
+        backgroundColor: ['rgba(255, 255, 255, 0.8)'],
+        borderColor: ['rgba(255, 255, 255, 1)'],
         borderWidth: 2
       }
     ]
@@ -90,34 +76,25 @@ export default function WorkoutFrequencyChart({
     }
   };
 
-  const totalDays = (workoutStats?.workoutDays || 0) + (workoutStats?.restDays || 0);
-  const workoutPercentage = totalDays > 0 ? (((workoutStats?.workoutDays || 0) / totalDays) * 100).toFixed(1) : 0;
-
   return (
     <GlassWidget widgetId="analytics-frequency" showGlow allowColorChange className="p-4 md:p-6">
-      <h2 className="text-lg md:text-xl font-bold text-white mb-4 md:mb-6">Workout Frequency</h2>
+      <h2 className="text-lg md:text-xl font-bold text-white mb-4 md:mb-6">Total Workouts</h2>
 
-      <div className="mb-4 md:mb-6">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-white/60">Workout Days</span>
-          <span className="text-white font-semibold">{workoutStats?.workoutDays || 0}</span>
+      <div className="text-center py-8">
+        <div className="text-6xl md:text-8xl font-bold text-white mb-2">
+          {workoutCount || 0}
         </div>
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-white/60">Rest Days</span>
-          <span className="text-white font-semibold">{workoutStats?.restDays || 0}</span>
-        </div>
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-white/60">Total Days</span>
-          <span className="text-white font-semibold">{workoutStats?.totalDays || 0}</span>
-        </div>
-        <div className="flex items-center justify-between pt-2 border-t border-white/10">
-          <span className="text-white/80 font-medium">Workout Rate</span>
-          <span className="text-white font-bold">{workoutPercentage}%</span>
+        <div className="text-white/60 text-lg">
+          workouts completed
         </div>
       </div>
 
-      <div className="h-[300px]">
-        <Pie data={data} options={options} />
+      <div className="h-[200px] flex items-center justify-center">
+        <div className="w-32 h-32 rounded-full border-8 border-white/20 flex items-center justify-center">
+          <div className="text-3xl font-bold text-white">
+            {workoutCount || 0}
+          </div>
+        </div>
       </div>
     </GlassWidget>
   );

@@ -1,14 +1,16 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, FormEvent } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useRoutine } from '@/hooks/useRoutines';
 import { useExercises } from '@/hooks/useExercises';
 import { MUSCLE_GROUPS, EQUIPMENT_TYPES } from '@/lib/types';
+import { db } from '@/lib/db';
 import { Plus, Trash2, ArrowLeft, Check, Filter } from 'lucide-react';
 import GlassWidget from '@/components/ui/GlassWidget';
 import Button from '@/components/ui/Button';
 import SearchInput from '@/components/ui/SearchInput';
+
 
 export default function EditRoutinePage() {
   const router = useRouter();
@@ -20,7 +22,7 @@ export default function EditRoutinePage() {
     return idPart ? parseInt(idPart) : null;
   }, [pathname]);
 
-  const { routine, loading, addExerciseToRoutine, removeExerciseFromRoutine } = useRoutine(routineId);
+  const { routine, loading, addExerciseToRoutine, removeExerciseFromRoutine, refreshRoutine } = useRoutine(routineId);
   const [search, setSearch] = useState('');
   const [muscleGroup, setMuscleGroup] = useState<string>('');
   const [equipment, setEquipment] = useState<string>('');
@@ -28,13 +30,38 @@ export default function EditRoutinePage() {
 
   const handleAddExercise = async (exerciseId: number) => {
     if (routineId !== null) {
-      await addExerciseToRoutine(routineId, exerciseId);
+      console.log(`➕ ROUTINE EDIT: Adding exercise ${exerciseId} to routine ${routineId}`);
+      await addExerciseToRoutine(routineId, exerciseId); // Defaults to 1 set, 8 reps
+      console.log(`✅ ROUTINE EDIT: Exercise added, triggering UI refresh...`);
+      refreshRoutine();
     }
   };
 
   const handleRemoveExercise = async (routineExerciseId: number) => {
     if (confirm('Remove this exercise from the routine?')) {
+      console.log(`🗑️ ROUTINE EDIT: Removing exercise ${routineExerciseId} from routine`);
       await removeExerciseFromRoutine(routineExerciseId);
+      console.log(`✅ ROUTINE EDIT: Exercise removed, triggering UI refresh...`);
+      refreshRoutine();
+    }
+  };
+
+  const handleUpdateTargetSets = async (routineExerciseId: number, newTargetSets: number) => {
+    if (newTargetSets < 1) return; // Minimum 1 set
+
+    console.log(`🔄 ROUTINE EDIT: Updating targetSets for routine exercise ${routineExerciseId} to ${newTargetSets}`);
+
+    try {
+      await db.routine_exercises.update(routineExerciseId, {
+        targetSets: newTargetSets
+      });
+      console.log(`✅ ROUTINE EDIT: Successfully updated targetSets to ${newTargetSets}`);
+
+      // Force UI refresh to show updated data immediately
+      console.log(`🔄 ROUTINE EDIT: Triggering UI refresh...`);
+      refreshRoutine();
+    } catch (error) {
+      console.error(`❌ ROUTINE EDIT: Failed to update targetSets:`, error);
     }
   };
 
@@ -102,34 +129,83 @@ export default function EditRoutinePage() {
             ) : (
               <div className="space-y-2 overflow-y-auto flex-1">
                 {routine?.exercises.map((exercise, index) => {
-                  const routineExercise = routine.exercises.find(e => e.id === exercise.id);
+                  const routineExercise = routine.routineExercises.find(
+                    re => re.exerciseId === exercise.id
+                  );
+                  const targetSets = routineExercise?.targetSets || 1;
+
                   return (
                     <div
                       key={exercise.id}
-                      className="flex items-center justify-between p-4 rounded-lg bg-white/5"
+                      className="p-4 rounded-lg bg-white/5"
                     >
-                      <div className="flex items-center gap-3">
-                        <span className="text-white/40 font-mono text-sm">
-                          #{index + 1}
-                        </span>
-                        <div>
-                          <h3 className="text-white font-medium">{exercise.name}</h3>
-                          <p className="text-sm text-white/60">{exercise.muscleGroup}</p>
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <span className="text-white/40 font-mono text-sm">
+                            #{index + 1}
+                          </span>
+                          <div>
+                            <h3 className="text-white font-medium">{exercise.name}</h3>
+                            <p className="text-sm text-white/60">{exercise.muscleGroup}</p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => {
+                            if (routineExercise?.id) {
+                              handleRemoveExercise(routineExercise.id);
+                            }
+                          }}
+                          className="p-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 transition-colors"
+                        >
+                          <Trash2 size={16} className="text-red-400" />
+                        </button>
+                      </div>
+
+                      {/* Set count controls */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-white/60">Sets:</span>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => {
+                                if (routineExercise?.id) {
+                                  handleUpdateTargetSets(routineExercise.id, targetSets - 1);
+                                }
+                              }}
+                              disabled={targetSets <= 1}
+                              className="w-8 h-8 rounded bg-white/10 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center text-white/60 hover:text-white"
+                            >
+                              -
+                            </button>
+                            <span className="w-8 text-center text-white font-medium">{targetSets}</span>
+                            <button
+                              onClick={() => {
+                                if (routineExercise?.id) {
+                                  handleUpdateTargetSets(routineExercise.id, targetSets + 1);
+                                }
+                              }}
+                              className="w-8 h-8 rounded bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/60 hover:text-white"
+                            >
+                              +
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Visual set indicators */}
+                        <div className="flex gap-1">
+                          {Array.from({ length: Math.min(targetSets, 5) }, (_, i) => (
+                            <div
+                              key={i}
+                              className="w-2 h-2 rounded-full bg-blue-400"
+                            />
+                          ))}
+                          {targetSets > 5 && (
+                            <span className="text-xs text-white/40 ml-1">
+                              +{targetSets - 5}
+                            </span>
+                          )}
                         </div>
                       </div>
-                      <button
-                        onClick={() => {
-                          const routineExercise = routine.routineExercises.find(
-                            re => re.exerciseId === exercise.id
-                          );
-                          if (routineExercise?.id) {
-                            handleRemoveExercise(routineExercise.id);
-                          }
-                        }}
-                        className="p-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 transition-colors"
-                      >
-                        <Trash2 size={16} className="text-red-400" />
-                      </button>
                     </div>
                   );
                 })}

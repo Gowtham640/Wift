@@ -51,15 +51,15 @@ export function useWorkouts() {
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   });
 
-  const createWorkout = async (routineId?: number) => {
-    const today = getTodayString();
+  const createWorkout = async (routineId?: number, customDate?: string) => {
+    const workoutDate = customDate || getTodayString();
 
-    // Check if there's already an incomplete workout for this routine today
+    // Check if there's already an incomplete workout for this routine on the selected date
     if (routineId) {
       const allWorkouts = await db.workouts.toArray();
       const existingWorkout = allWorkouts.find(workout =>
         workout.routineId === routineId &&
-        workout.date === today &&
+        workout.date === workoutDate &&
         workout.endTime === undefined
       );
 
@@ -71,25 +71,51 @@ export function useWorkouts() {
 
     const workoutId = await db.workouts.add({
       routineId,
-      date: today,
+      date: workoutDate,
       startTime: Date.now()
     });
 
     if (routineId) {
+      console.log('🏗️ WORKOUT CREATION: Creating workout from routine ID:', routineId);
+
       const routineExercises = await db.routine_exercises
         .where('routineId')
         .equals(routineId)
         .sortBy('order');
 
+      console.log('🏗️ WORKOUT CREATION: Found', routineExercises.length, 'exercises in routine');
+
+      // Create workout exercises and initial sets based on routine targets
       await Promise.all(
-        routineExercises.map((re) =>
-          db.workout_exercises.add({
+        routineExercises.map(async (re) => {
+          console.log(`🏗️ WORKOUT CREATION: Creating workout exercise for routine exercise ID ${re.id} (${re.targetSets || 1} sets)`);
+
+          const workoutExerciseId = await db.workout_exercises.add({
             workoutId: Number(workoutId),
             exerciseId: re.exerciseId,
             order: re.order
-          })
-        )
+          });
+
+          // Create the target number of sets for this exercise
+          const targetSets = re.targetSets || 1;
+          console.log(`🏗️ WORKOUT CREATION: Creating ${targetSets} initial sets for workout exercise ${workoutExerciseId}`);
+
+          await Promise.all(
+            Array.from({ length: targetSets }, () =>
+              db.sets.add({
+                workoutExerciseId: Number(workoutExerciseId),
+                weight: 0,
+                reps: 0,
+                completed: false
+              })
+            )
+          );
+
+          console.log(`✅ WORKOUT CREATION: Created ${targetSets} sets for workout exercise ${workoutExerciseId}`);
+        })
       );
+
+      console.log('✅ WORKOUT CREATION: Routine workout created successfully');
     }
 
     return workoutId;

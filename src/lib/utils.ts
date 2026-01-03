@@ -80,3 +80,26 @@ export function cn(...classes: (string | undefined | null | false)[]): string {
   return classes.filter(Boolean).join(' ');
 }
 
+// Convert timestamp to IST (Indian Standard Time)
+export function toIST(timestamp: number): Date {
+  // Create date in UTC
+  const utcDate = new Date(timestamp);
+
+  // Convert to IST (UTC+5:30)
+  const istOffset = 5.5 * 60 * 60 * 1000; // 5.5 hours in milliseconds
+  const istDate = new Date(utcDate.getTime() + istOffset);
+
+  return istDate;
+}
+
+// Get current IST date string (YYYY-MM-DD)
+export function getISTDateString(): string {
+  const istDate = toIST(Date.now());
+  return istDate.toISOString().split('T')[0];
+}
+
+// Get current IST timestamp
+export function getISTTimestamp(): number {
+  return toIST(Date.now()).getTime();
+}
+

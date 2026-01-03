@@ -30,12 +30,14 @@ export default function PersonalRecords({ timePeriod }: PersonalRecordsProps) {
   const personalRecords = useLiveQuery(async () => {
     const { startDate, endDate } = getDateRangeForPeriod(timePeriod);
 
-    const allWorkouts = await db.workouts
-      .where('date')
-      .between(getLocalDateString(startDate), getLocalDateString(endDate))
-      .toArray();
+    // Get all workouts first, then filter by date and completion
+    const allWorkoutsInDb = await db.workouts.toArray();
 
-    const workouts = allWorkouts.filter(workout => workout.endTime !== undefined);
+    const workouts = allWorkoutsInDb.filter(workout =>
+      workout.endTime !== undefined &&
+      workout.date >= getLocalDateString(startDate) &&
+      workout.date <= getLocalDateString(endDate)
+    );
 
     const workoutIds = workouts.map(w => w.id!);
     const records: PersonalRecord[] = [];

@@ -4,12 +4,13 @@ import { useState, useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { useWorkout, useWorkouts } from '@/hooks/useWorkouts';
 import { useRoutines, useRoutine } from '@/hooks/useRoutines';
-import { ArrowLeft, Check, Clock, Plus } from 'lucide-react';
+import { ArrowLeft, Check, Clock, Plus, Calendar } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import ExerciseCard from '@/components/workout/ExerciseCard';
 import GlassWidget from '@/components/ui/GlassWidget';
 import Modal from '@/components/ui/Modal';
-import { formatDuration } from '@/lib/utils';
+import { showToast } from '@/components/ui/Toast';
+import { formatDuration, getTodayString } from '@/lib/utils';
 import { db } from '@/lib/db';
 
 export default function WorkoutPage() {
@@ -25,32 +26,38 @@ export default function WorkoutPage() {
 
   const { createWorkout } = useWorkouts();
   const { updateRoutine } = useRoutines();
+  // Note: We don't need refreshRoutine here since the workout page doesn't display routine data
   const [currentWorkoutId, setCurrentWorkoutId] = useState<number | null>(workoutId);
   const { workout, loading, completeWorkout, addExerciseToWorkout } = useWorkout(currentWorkoutId);
   const { addExerciseToRoutine } = useRoutine(workout?.workout.routineId || null);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [showUpdateRoutineModal, setShowUpdateRoutineModal] = useState(false);
+  const [showDateSelectionModal, setShowDateSelectionModal] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(getTodayString());
 
   useEffect(() => {
     if (workoutId === null) {
-      const initWorkout = async () => {
-        try {
-          const id = await createWorkout(routineId ? parseInt(routineId) : undefined);
-
-          // Wait for workout to be fully created and queryable
-          await new Promise(resolve => setTimeout(resolve, 100));
-
-          setCurrentWorkoutId(Number(id));
-          router.replace(`/workouts/${id}`);
-        } catch (error) {
-          console.error('Failed to create workout:', error);
-          // Fallback to dashboard on error
-          router.push('/');
-        }
-      };
-      initWorkout();
+      // Show date selection modal for new workouts
+      setShowDateSelectionModal(true);
     }
-  }, [workoutId, routineId, createWorkout, router]);
+  }, [workoutId]);
+
+  const handleDateSelected = async () => {
+    try {
+      setShowDateSelectionModal(false);
+      const id = await createWorkout(routineId ? parseInt(routineId) : undefined, selectedDate);
+
+      // Wait for workout to be fully created and queryable
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      setCurrentWorkoutId(Number(id));
+      router.replace(`/workouts/${id}`);
+    } catch (error) {
+      console.error('Failed to create workout:', error);
+      // Fallback to dashboard on error
+      router.push('/');
+    }
+  };
 
   useEffect(() => {
     if (!workout?.workout.endTime) {
@@ -64,80 +71,196 @@ export default function WorkoutPage() {
   }, [workout]);
 
   const handleComplete = async () => {
-    if (!currentWorkoutId || !workout) return;
+    console.log('🏁 WORKOUT COMPLETION: Starting workout completion process');
+    console.log('🏁 WORKOUT COMPLETION: Current workout ID:', currentWorkoutId);
+    console.log('🏁 WORKOUT COMPLETION: Workout data:', workout);
 
+    if (!currentWorkoutId || !workout) {
+      console.log('❌ WORKOUT COMPLETION: Missing workout data, aborting');
+      return;
+    }
+
+    console.log('🔍 WORKOUT COMPLETION: Checking for routine changes...');
     // Check if there are changes that should update the routine
     const hasChanges = await checkForRoutineChanges();
 
+    console.log('🔍 WORKOUT COMPLETION: Changes detected:', hasChanges);
+
     if (hasChanges) {
+      console.log('💬 WORKOUT COMPLETION: Showing update routine modal');
       setShowUpdateRoutineModal(true);
     } else {
+      console.log('✅ WORKOUT COMPLETION: No changes detected, completing workout normally');
       await completeWorkout(currentWorkoutId);
+      console.log('✅ WORKOUT COMPLETION: Workout completed successfully, redirecting to dashboard');
       router.push('/');
     }
   };
 
   const checkForRoutineChanges = async (): Promise<boolean> => {
-    if (!workout?.workout.routineId || !workout.exercises) return false;
+    console.log('🔍 ROUTINE CHECK: Starting routine change detection');
+
+    if (!workout?.workout.routineId || !workout.exercises) {
+      console.log('❌ ROUTINE CHECK: No routine ID or exercises found');
+      return false;
+    }
+
+    console.log('📊 ROUTINE CHECK: Workout routine ID:', workout.workout.routineId);
+    console.log('📊 ROUTINE CHECK: Workout has', workout.exercises.length, 'exercises');
 
     // Get original routine exercises
+    console.log('🔍 ROUTINE CHECK: Fetching original routine exercises from database...');
     const originalExercises = await db.routine_exercises
       .where('routineId')
       .equals(workout.workout.routineId)
-      .sortBy('order');
+      .toArray();
 
-    // Check if we have more exercises than the original routine
-    if (workout.exercises.length > originalExercises.length) {
-      return true;
-    }
+    console.log('📊 ROUTINE CHECK: Found', originalExercises.length, 'routine exercises in database');
 
-    // Check if any exercise has more sets than originally planned
-    // This is a simplified check - in a real app, you'd track original set counts
-    for (const exercise of workout.exercises) {
-      if (exercise.sets.length > 3) { // Assume original routines had max 3 sets
-        return true;
+    // Check if the actual number of sets performed differs from stored targets
+    console.log('🔍 ROUTINE CHECK: Comparing actual sets vs stored targets...');
+    for (const workoutExercise of workout.exercises) {
+      const routineExercise = originalExercises.find(re => re.exerciseId === workoutExercise.exercise.id);
+      if (routineExercise) {
+        const storedSets = routineExercise.targetSets || 1;
+        const actualSets = workoutExercise.sets.length;
+        console.log(`🔍 ROUTINE CHECK: Exercise "${workoutExercise.exercise.name}": Stored=${storedSets}, Actual=${actualSets}`);
+
+        if (actualSets !== storedSets) {
+          console.log(`✅ ROUTINE CHECK: Change detected for "${workoutExercise.exercise.name}": ${storedSets} → ${actualSets} sets`);
+          return true; // Number of sets performed differs from stored target
+        }
+      } else {
+        console.log(`⚠️ ROUTINE CHECK: Exercise "${workoutExercise.exercise.name}" not found in routine`);
       }
     }
 
+    console.log('✅ ROUTINE CHECK: No changes detected');
     return false;
   };
 
   const handleUpdateRoutine = async () => {
-    if (!currentWorkoutId || !workout?.workout.routineId) return;
+    console.log('🔄 ROUTINE UPDATE: Starting routine update process');
+    console.log('🔄 ROUTINE UPDATE: Current workout ID:', currentWorkoutId);
+    console.log('🔄 ROUTINE UPDATE: Routine ID:', workout?.workout.routineId);
+
+    if (!currentWorkoutId || !workout?.workout.routineId) {
+      console.log('❌ ROUTINE UPDATE: Missing required data, aborting');
+      showToast('Failed to update routine - missing data', 'error');
+      return;
+    }
 
     try {
-      // Add new exercises to routine
+      console.log('🔍 ROUTINE UPDATE: Fetching original routine exercises...');
+      // Get original routine exercises
       const originalExercises = await db.routine_exercises
         .where('routineId')
         .equals(workout.workout.routineId)
         .toArray();
 
-      const originalExerciseIds = originalExercises.map(re => re.exerciseId);
+      console.log('📊 ROUTINE UPDATE: Found', originalExercises.length, 'routine exercises');
+      console.log('📝 ROUTINE UPDATE: Processing', workout.exercises.length, 'workout exercises');
 
-      for (const exercise of workout.exercises) {
-        if (!originalExerciseIds.includes(exercise.exercise.id!)) {
-          // Add new exercise to routine
-          await addExerciseToRoutine(workout.workout.routineId, exercise.exercise.id!);
+      // Update stored set counts to match what was actually performed
+      let updatedCount = 0;
+      for (const workoutExercise of workout.exercises) {
+        const routineExercise = originalExercises.find(re => re.exerciseId === workoutExercise.exercise.id);
+        if (routineExercise) {
+          const actualSetsPerformed = workoutExercise.sets.length;
+          const oldSets = routineExercise.targetSets || 1;
+
+          console.log(`🔄 ROUTINE UPDATE: Preparing to update "${workoutExercise.exercise.name}": ${oldSets} → ${actualSetsPerformed} sets`);
+          console.log(`🔄 ROUTINE UPDATE: Routine exercise ID: ${routineExercise.id}, Exercise ID: ${routineExercise.exerciseId}`);
+
+          try {
+            console.log(`🔄 ROUTINE UPDATE: Routine exercise ID type:`, typeof routineExercise.id, `value:`, routineExercise.id);
+
+            // Verify the record exists before updating
+            const existingRecord = await db.routine_exercises.get(routineExercise.id!);
+            console.log(`🔄 ROUTINE UPDATE: Found existing record:`, existingRecord);
+
+            if (existingRecord) {
+              console.log(`🔄 ROUTINE UPDATE: About to call update with ID: ${routineExercise.id}, targetSets: ${actualSetsPerformed}`);
+              const updateResult = await db.routine_exercises.update(routineExercise.id!, {
+                targetSets: actualSetsPerformed
+              });
+              console.log(`🔄 ROUTINE UPDATE: Update result for ${routineExercise.id}:`, updateResult, `(should be 1 if successful)`);
+
+              // If update didn't work, try put as fallback
+              if (updateResult !== 1) {
+                console.log(`⚠️ ROUTINE UPDATE: Update returned ${updateResult}, trying put as fallback`);
+                const putResult = await db.routine_exercises.put({
+                  ...existingRecord,
+                  targetSets: actualSetsPerformed
+                });
+                console.log(`🔄 ROUTINE UPDATE: Put result:`, putResult);
+              }
+
+              // Verify the update worked
+              const updatedRecord = await db.routine_exercises.get(routineExercise.id!);
+              console.log(`🔄 ROUTINE UPDATE: Record after update:`, updatedRecord);
+
+              if (updatedRecord && updatedRecord.targetSets === actualSetsPerformed) {
+                console.log(`✅ ROUTINE UPDATE: Successfully updated "${workoutExercise.exercise.name}" to ${actualSetsPerformed} sets`);
+                updatedCount++;
+              } else {
+                console.log(`❌ ROUTINE UPDATE: Update verification failed for "${workoutExercise.exercise.name}"`);
+              }
+            } else {
+              console.log(`❌ ROUTINE UPDATE: Record not found for update: ${routineExercise.id}`);
+            }
+          } catch (updateError) {
+            console.error(`❌ ROUTINE UPDATE: Error updating "${workoutExercise.exercise.name}":`, updateError);
+          }
+        } else {
+          console.log(`⚠️ ROUTINE UPDATE: Exercise "${workoutExercise.exercise.name}" not found in routine, skipping`);
         }
       }
 
+      console.log(`✅ ROUTINE UPDATE: Successfully updated ${updatedCount} exercises`);
+
+      // Final verification - check all routine exercises after updates
+      console.log('🔍 ROUTINE UPDATE: Final verification of all routine exercises...');
+      const finalExercises = await db.routine_exercises
+        .where('routineId')
+        .equals(workout.workout.routineId)
+        .toArray();
+
+      finalExercises.forEach(exercise => {
+        console.log(`🔍 ROUTINE UPDATE: Final state - Exercise ID ${exercise.exerciseId}: ${exercise.targetSets} sets`);
+      });
+
+      console.log('🏁 ROUTINE UPDATE: Completing workout...');
+
       // Complete the workout
       await completeWorkout(currentWorkoutId);
+      console.log('✅ ROUTINE UPDATE: Workout completed, redirecting to dashboard');
+
+      showToast(`Routine updated successfully! Updated ${updatedCount} exercises.`, 'success');
       router.push('/');
     } catch (error) {
-      console.error('Failed to update routine:', error);
+      console.error('❌ ROUTINE UPDATE: Failed to update routine:', error);
+      showToast('Failed to update routine - check console for details', 'error');
     }
   };
 
   const handleCompleteWithoutUpdate = async () => {
+    console.log('🏁 WORKOUT COMPLETION: User chose not to update routine, completing workout normally');
+
     if (currentWorkoutId) {
+      console.log('🏁 WORKOUT COMPLETION: Completing workout without routine update...');
       await completeWorkout(currentWorkoutId);
+      console.log('✅ WORKOUT COMPLETION: Workout completed successfully');
+      showToast('Workout completed successfully!', 'success');
       router.push('/');
+    } else {
+      console.log('❌ WORKOUT COMPLETION: No workout ID found');
+      showToast('Failed to complete workout', 'error');
     }
   };
 
   return (
-    <div className="space-y-4 md:space-y-6">
+    <div className="space-y-4 md:space-y-6 w-full">
       {/* Loading overlay - non-blocking */}
       {loading && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -230,7 +353,10 @@ export default function WorkoutPage() {
 
       <Modal
         isOpen={showUpdateRoutineModal}
-        onClose={() => setShowUpdateRoutineModal(false)}
+        onClose={() => {
+          console.log('💬 MODAL: User closed update routine modal without action');
+          setShowUpdateRoutineModal(false);
+        }}
         title="Update Routine?"
       >
         <div className="space-y-4">
@@ -240,6 +366,7 @@ export default function WorkoutPage() {
           <div className="flex gap-3">
             <Button
               onClick={() => {
+                console.log('💬 MODAL: User clicked "Yes, Update Routine"');
                 setShowUpdateRoutineModal(false);
                 handleUpdateRoutine();
               }}
@@ -250,12 +377,58 @@ export default function WorkoutPage() {
             <Button
               variant="secondary"
               onClick={() => {
+                console.log('💬 MODAL: User clicked "No, Just Complete"');
                 setShowUpdateRoutineModal(false);
                 handleCompleteWithoutUpdate();
               }}
               className="flex-1"
             >
               No, Just Complete
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Date Selection Modal */}
+      <Modal
+        isOpen={showDateSelectionModal}
+        onClose={() => router.push('/')}
+        title="Select Workout Date"
+      >
+        <div className="space-y-6">
+          <div className="text-center">
+            <Calendar className="mx-auto mb-4 text-blue-400" size={48} />
+            <p className="text-white/80 mb-4">
+              When did you perform this workout?
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            <label className="block text-sm font-medium text-white/80">
+              Workout Date
+            </label>
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              max={getTodayString()} // Don't allow future dates
+              className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+
+          <div className="flex gap-3">
+            <Button
+              onClick={() => router.push('/')}
+              variant="secondary"
+              className="flex-1"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleDateSelected}
+              className="flex-1"
+            >
+              Start Workout
             </Button>
           </div>
         </div>

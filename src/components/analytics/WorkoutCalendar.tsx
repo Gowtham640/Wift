@@ -30,28 +30,24 @@ export default function WorkoutCalendar() {
     const ninetyDaysAgo = new Date();
     ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
 
-    const allStreakWorkouts = await db.workouts
-      .where('date')
-      .between(
-        `${ninetyDaysAgo.getFullYear()}-${String(ninetyDaysAgo.getMonth() + 1).padStart(2, '0')}-${String(ninetyDaysAgo.getDate()).padStart(2, '0')}`,
-        getTodayString()
-      )
-      .toArray();
+    // Get all workouts first, then filter appropriately
+    const allWorkoutsInDb = await db.workouts.toArray();
 
-    const allWorkouts = allStreakWorkouts
-      .filter(workout => workout.endTime !== undefined)
+    // Filter for streak calculation (last 90 days, completed)
+    const allWorkouts = allWorkoutsInDb
+      .filter(workout =>
+        workout.endTime !== undefined &&
+        workout.date >= `${ninetyDaysAgo.getFullYear()}-${String(ninetyDaysAgo.getMonth() + 1).padStart(2, '0')}-${String(ninetyDaysAgo.getDate()).padStart(2, '0')}` &&
+        workout.date <= getTodayString()
+      )
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-    // Get workouts for current month
-    const allMonthWorkouts = await db.workouts
-      .where('date')
-      .between(
-        `${startOfMonth.getFullYear()}-${String(startOfMonth.getMonth() + 1).padStart(2, '0')}-${String(startOfMonth.getDate()).padStart(2, '0')}`,
-        `${endOfMonth.getFullYear()}-${String(endOfMonth.getMonth() + 1).padStart(2, '0')}-${String(endOfMonth.getDate()).padStart(2, '0')}`
-      )
-      .toArray();
-
-    const monthWorkouts = allMonthWorkouts.filter(workout => workout.endTime !== undefined);
+    // Filter for current month workouts
+    const monthWorkouts = allWorkoutsInDb.filter(workout =>
+      workout.endTime !== undefined &&
+      workout.date >= `${startOfMonth.getFullYear()}-${String(startOfMonth.getMonth() + 1).padStart(2, '0')}-${String(startOfMonth.getDate()).padStart(2, '0')}` &&
+      workout.date <= `${endOfMonth.getFullYear()}-${String(endOfMonth.getMonth() + 1).padStart(2, '0')}-${String(endOfMonth.getDate()).padStart(2, '0')}`
+    );
 
     const workoutDateSet = new Set(monthWorkouts.map(w => w.date));
 

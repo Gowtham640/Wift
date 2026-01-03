@@ -32,15 +32,17 @@ export default function MuscleDistributionChart({
     return await db.workouts.count(); // Changes when workouts are added/deleted
   });
 
-  const filteredDistribution = useLiveQuery(async () => {
+  const muscleData = useLiveQuery(async () => {
     const { startDate, endDate } = getDateRangeForPeriod(timePeriod);
 
-    const allWorkouts = await db.workouts
-      .where('date')
-      .between(getLocalDateString(startDate), getLocalDateString(endDate))
-      .toArray();
+    // Get all workouts first, then filter by date and completion
+    const allWorkouts = await db.workouts.toArray();
 
-    const workouts = allWorkouts.filter(workout => workout.endTime !== undefined);
+    const workouts = allWorkouts.filter(workout =>
+      workout.endTime !== undefined &&
+      workout.date >= getLocalDateString(startDate) &&
+      workout.date <= getLocalDateString(endDate)
+    );
 
     const muscleVolumes: { [key: string]: number } = {};
 
@@ -57,7 +59,7 @@ export default function MuscleDistributionChart({
         const sets = await db.sets
           .where('workoutExerciseId')
           .equals(we.id!)
-          .and(s => s.completed)
+          .filter(s => s.completed)
           .toArray();
 
         const volume = sets.reduce((sum, s) => sum + s.weight * s.reps, 0);
@@ -69,49 +71,23 @@ export default function MuscleDistributionChart({
       }
     }
 
-    const totalVolume = Object.values(muscleVolumes).reduce((sum, v) => sum + v, 0);
-
-    const data: MuscleGroupVolume[] = Object.entries(muscleVolumes).map(
-      ([muscleGroup, volume]) => ({
-        muscleGroup,
-        volume,
-        percentage: totalVolume > 0 ? (volume / totalVolume) * 100 : 0
-      })
-    );
-
-    return data;
+    return Object.entries(muscleVolumes).map(([muscle, volume]) => ({
+      muscle,
+      volume
+    }));
   }, [timePeriod, deletionTracker]);
 
-  const sortedDistribution = [...(filteredDistribution || [])].sort((a, b) => b.volume - a.volume);
+  const sortedData = [...(muscleData || [])].sort((a, b) => b.volume - a.volume);
 
   const data = {
-    labels: sortedDistribution.map(d => d.muscleGroup),
+    labels: sortedData.map(d => d.muscle),
     datasets: [
       {
         label: 'Volume (kg)',
-        data: sortedDistribution.map(d => d.volume),
+        data: sortedData.map(d => d.volume),
         backgroundColor: 'rgba(255, 255, 255, 0.2)',
         borderColor: 'rgba(255, 255, 255, 1)',
-        borderWidth: 2,
-        pointBackgroundColor: sortedDistribution.map((_, index) => {
-          const colors = [
-            'rgba(255, 255, 255, 1)',
-            'rgba(168, 85, 247, 1)',
-            'rgba(16, 185, 129, 1)',
-            'rgba(245, 158, 11, 1)',
-            'rgba(239, 68, 68, 1)',
-            'rgba(6, 182, 212, 1)',
-            'rgba(236, 72, 153, 1)',
-            'rgba(139, 92, 246, 1)',
-            'rgba(34, 197, 94, 1)',
-            'rgba(251, 146, 60, 1)'
-          ];
-          return colors[index % colors.length];
-        }),
-        pointBorderColor: 'rgba(255, 255, 255, 0.8)',
-        pointBorderWidth: 2,
-        pointRadius: 6,
-        pointHoverRadius: 8
+        borderWidth: 2
       }
     ]
   };
@@ -127,18 +103,9 @@ export default function MuscleDistributionChart({
         backgroundColor: 'rgba(0, 0, 0, 0.8)',
         titleColor: 'rgba(255, 255, 255, 1)',
         bodyColor: 'rgba(255, 255, 255, 0.8)',
-        borderColor: 'rgba(255, 255, 255, 0.1)',
-        borderWidth: 1,
-        padding: 12,
         callbacks: {
-          title: function(context: any) {
-            return context[0].label;
-          },
           label: function(context: any) {
-            const index = context.dataIndex;
-            const volume = sortedDistribution[index].volume;
-            const percentage = sortedDistribution[index].percentage;
-            return `Volume: ${volume.toFixed(0)} kg (${percentage.toFixed(1)}%)`;
+            return `${context.parsed.r} kg`;
           }
         }
       }
@@ -146,6 +113,9 @@ export default function MuscleDistributionChart({
     scales: {
       r: {
         beginAtZero: true,
+        ticks: {
+          display: false
+        },
         grid: {
           color: 'rgba(255, 255, 255, 0.1)'
         },
@@ -153,16 +123,9 @@ export default function MuscleDistributionChart({
           color: 'rgba(255, 255, 255, 0.1)'
         },
         pointLabels: {
-          color: 'rgba(255, 255, 255, 0.7)',
+          color: 'rgba(255, 255, 255, 0.8)',
           font: {
             size: 12
-          }
-        },
-        ticks: {
-          color: 'rgba(255, 255, 255, 0.5)',
-          backdropColor: 'transparent',
-          callback: function(value: any) {
-            return value + 'kg';
           }
         }
       }
@@ -171,20 +134,31 @@ export default function MuscleDistributionChart({
 
   return (
     <GlassWidget widgetId="analytics-muscle-distribution" showGlow allowColorChange className="p-4 md:p-6">
-      <h2 className="text-lg md:text-xl font-bold text-white mb-4 md:mb-6">Muscle Balance</h2>
+      <h2 className="text-lg md:text-xl font-bold text-white mb-4 md:mb-6">Muscle Volume</h2>
 
-      <div className="mb-4 md:mb-6 grid grid-cols-2 gap-2 md:gap-3">
-        {sortedDistribution.slice(0, 6).map((item, index) => (
-          <div key={item.muscleGroup} className="flex items-center justify-between p-2 rounded-lg bg-white/5">
-            <span className="text-sm text-white/80">{item.muscleGroup}</span>
-            <span className="text-sm text-white/60">{item.percentage.toFixed(1)}%</span>
+      <div className="h-[350px]">
+        {sortedData && sortedData.length > 0 ? (
+          <Radar data={data} options={options} />
+        ) : (
+          <div className="h-full flex items-center justify-center">
+            <div className="text-center">
+              <p className="text-white/40 mb-2">No muscle data available</p>
+              <p className="text-white/60 text-sm">Complete some workouts to see volume distribution</p>
+            </div>
           </div>
-        ))}
+        )}
       </div>
 
-      <div className="h-[400px]">
-        <Radar data={data} options={options} />
-      </div>
+      {sortedData && sortedData.length > 0 && (
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          {sortedData.slice(0, 6).map((item) => (
+            <div key={item.muscle} className="flex items-center justify-between p-2 rounded bg-white/5">
+              <span className="text-sm text-white/80">{item.muscle}</span>
+              <span className="text-sm text-white/60">{item.volume.toFixed(0)}kg</span>
+            </div>
+          ))}
+        </div>
+      )}
     </GlassWidget>
   );
 }

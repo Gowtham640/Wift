@@ -1,3 +1,4 @@
+import { useState, useCallback } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type Routine, type RoutineExercise } from '@/lib/db';
 import type { RoutineWithExercises } from '@/lib/types';
@@ -54,8 +55,12 @@ export function useRoutines(search?: string) {
 }
 
 export function useRoutine(id: number | null) {
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
   const routine = useLiveQuery(async () => {
     if (id === null) return null;
+
+    console.log(`🔄 ROUTINE QUERY: Fetching routine ${id} (trigger: ${refreshTrigger})`);
 
     const routine = await db.routines.get(id);
     if (!routine) return null;
@@ -76,20 +81,40 @@ export function useRoutine(id: number | null) {
       exerciseCount: exercises.length
     };
 
-    return result;
-  }, [id]);
+    console.log(`✅ ROUTINE QUERY: Loaded ${result.exerciseCount} exercises for routine ${id}`);
+    result.routineExercises.forEach((re, index) => {
+      console.log(`   - Exercise ${index + 1}: ${result.exercises[index]?.name} → ${re.targetSets} sets`);
+    });
 
-  const addExerciseToRoutine = async (routineId: number, exerciseId: number) => {
+    return result;
+  }, [id, refreshTrigger]);
+
+  // Function to trigger a refresh of the routine data
+  const refreshRoutine = useCallback(() => {
+    const newTrigger = refreshTrigger + 1;
+    console.log(`🔄 ROUTINE REFRESH: Triggering refresh for routine ${id} (trigger: ${refreshTrigger} → ${newTrigger})`);
+    setRefreshTrigger(newTrigger);
+  }, [id, refreshTrigger]);
+
+  const addExerciseToRoutine = async (routineId: number, exerciseId: number, targetSets?: number, targetReps?: number) => {
+    console.log(`➕ ROUTINE CREATION: Adding exercise ${exerciseId} to routine ${routineId} with ${targetSets || 1} sets`);
+
     const existingCount = await db.routine_exercises
       .where('routineId')
       .equals(routineId)
       .count();
 
+    console.log(`➕ ROUTINE CREATION: Exercise will be at order position ${existingCount}`);
+
     await db.routine_exercises.add({
       routineId,
       exerciseId,
-      order: existingCount
+      order: existingCount,
+      targetSets: targetSets || 1, // Default to 1 set
+      targetReps: targetReps || 8  // Default to 8 reps
     });
+
+    console.log(`✅ ROUTINE CREATION: Successfully added exercise ${exerciseId} to routine ${routineId}`);
   };
 
   const removeExerciseFromRoutine = async (routineExerciseId: number) => {
@@ -117,7 +142,8 @@ export function useRoutine(id: number | null) {
     loading: routine === undefined,
     addExerciseToRoutine,
     removeExerciseFromRoutine,
-    reorderExercises
+    reorderExercises,
+    refreshRoutine
   };
 }
 

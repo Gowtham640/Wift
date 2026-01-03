@@ -114,6 +114,9 @@ export default function RoutinesPage() {
           />
         )}
       </Modal>
+
+      {/* Invisible spacer to push content above BottomNav overlay */}
+      <div className="h-20 md:hidden" aria-hidden="true" />
     </div>
   );
 }

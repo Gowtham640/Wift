@@ -3,11 +3,14 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { useWorkout, useWorkouts } from '@/hooks/useWorkouts';
+import { useRoutines, useRoutine } from '@/hooks/useRoutines';
 import { ArrowLeft, Check, Clock, Plus } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import ExerciseCard from '@/components/workout/ExerciseCard';
 import GlassWidget from '@/components/ui/GlassWidget';
+import Modal from '@/components/ui/Modal';
 import { formatDuration } from '@/lib/utils';
+import { db } from '@/lib/db';
 
 export default function WorkoutPage() {
   const router = useRouter();
@@ -21,9 +24,12 @@ export default function WorkoutPage() {
   }, [pathname]);
 
   const { createWorkout } = useWorkouts();
+  const { updateRoutine } = useRoutines();
   const [currentWorkoutId, setCurrentWorkoutId] = useState<number | null>(workoutId);
   const { workout, loading, completeWorkout, addExerciseToWorkout } = useWorkout(currentWorkoutId);
+  const { addExerciseToRoutine } = useRoutine(workout?.workout.routineId || null);
   const [elapsedTime, setElapsedTime] = useState(0);
+  const [showUpdateRoutineModal, setShowUpdateRoutineModal] = useState(false);
 
   useEffect(() => {
     if (workoutId === null) {
@@ -58,14 +64,80 @@ export default function WorkoutPage() {
   }, [workout]);
 
   const handleComplete = async () => {
-    if (currentWorkoutId && confirm('Complete this workout?')) {
+    if (!currentWorkoutId || !workout) return;
+
+    // Check if there are changes that should update the routine
+    const hasChanges = await checkForRoutineChanges();
+
+    if (hasChanges) {
+      setShowUpdateRoutineModal(true);
+    } else {
+      await completeWorkout(currentWorkoutId);
+      router.push('/');
+    }
+  };
+
+  const checkForRoutineChanges = async (): Promise<boolean> => {
+    if (!workout?.workout.routineId || !workout.exercises) return false;
+
+    // Get original routine exercises
+    const originalExercises = await db.routine_exercises
+      .where('routineId')
+      .equals(workout.workout.routineId)
+      .sortBy('order');
+
+    // Check if we have more exercises than the original routine
+    if (workout.exercises.length > originalExercises.length) {
+      return true;
+    }
+
+    // Check if any exercise has more sets than originally planned
+    // This is a simplified check - in a real app, you'd track original set counts
+    for (const exercise of workout.exercises) {
+      if (exercise.sets.length > 3) { // Assume original routines had max 3 sets
+        return true;
+      }
+    }
+
+    return false;
+  };
+
+  const handleUpdateRoutine = async () => {
+    if (!currentWorkoutId || !workout?.workout.routineId) return;
+
+    try {
+      // Add new exercises to routine
+      const originalExercises = await db.routine_exercises
+        .where('routineId')
+        .equals(workout.workout.routineId)
+        .toArray();
+
+      const originalExerciseIds = originalExercises.map(re => re.exerciseId);
+
+      for (const exercise of workout.exercises) {
+        if (!originalExerciseIds.includes(exercise.exercise.id!)) {
+          // Add new exercise to routine
+          await addExerciseToRoutine(workout.workout.routineId, exercise.exercise.id!);
+        }
+      }
+
+      // Complete the workout
+      await completeWorkout(currentWorkoutId);
+      router.push('/');
+    } catch (error) {
+      console.error('Failed to update routine:', error);
+    }
+  };
+
+  const handleCompleteWithoutUpdate = async () => {
+    if (currentWorkoutId) {
       await completeWorkout(currentWorkoutId);
       router.push('/');
     }
   };
 
   return (
-    <div className="space-y-4 md:space-y-6 max-w-4xl mx-auto">
+    <div className="space-y-4 md:space-y-6">
       {/* Loading overlay - non-blocking */}
       {loading && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -155,6 +227,39 @@ export default function WorkoutPage() {
           </>
         );
       })()}
+
+      <Modal
+        isOpen={showUpdateRoutineModal}
+        onClose={() => setShowUpdateRoutineModal(false)}
+        title="Update Routine?"
+      >
+        <div className="space-y-4">
+          <p className="text-white/80">
+            You have added exercises or sets to this workout. Would you like to update the routine to include these changes?
+          </p>
+          <div className="flex gap-3">
+            <Button
+              onClick={() => {
+                setShowUpdateRoutineModal(false);
+                handleUpdateRoutine();
+              }}
+              className="flex-1"
+            >
+              Yes, Update Routine
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setShowUpdateRoutineModal(false);
+                handleCompleteWithoutUpdate();
+              }}
+              className="flex-1"
+            >
+              No, Just Complete
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

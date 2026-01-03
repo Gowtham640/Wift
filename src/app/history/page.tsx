@@ -30,7 +30,7 @@ export default function HistoryPage() {
   };
 
   return (
-    <div className="space-y-4 md:space-y-6 max-w-6xl mx-auto">
+    <div className="space-y-4 md:space-y-6">
       <div className="px-2 md:px-0">
         <h1 className="text-2xl md:text-3xl font-bold text-white mb-1 md:mb-2">Workout History</h1>
         <p className="text-sm md:text-base text-white/60">View and manage your past workouts</p>
@@ -43,7 +43,7 @@ export default function HistoryPage() {
           <p className="text-white/60 text-sm">Start your first workout to see it here!</p>
         </GlassWidget>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+        <div className="space-y-4">
           {workouts.map((workout) => (
             <WorkoutHistoryCard
               key={workout.id}

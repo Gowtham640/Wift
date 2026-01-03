@@ -1,13 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Plus, Check, X } from 'lucide-react';
 import GlassWidget from '@/components/ui/GlassWidget';
-import SetRow from './SetRow';
 import VolumeIndicator from './VolumeIndicator';
 import { useSets } from '@/hooks/useWorkouts';
 import { type Exercise } from '@/lib/db';
 import { calculateTotalVolume, calculateVolumeIncrease } from '@/lib/utils';
+import Input from '@/components/ui/Input';
 
 interface ExerciseCardProps {
   workoutExerciseId: number;
@@ -22,96 +23,151 @@ export default function ExerciseCard({
   previousBest,
   previousVolume = 0
 }: ExerciseCardProps) {
-  const { sets, addSet, updateSet, deleteSet } = useSets(workoutExerciseId);
-  const [firstSetValues, setFirstSetValues] = useState<{ weight: number; reps: number } | null>(null);
-  const [deleteMode, setDeleteMode] = useState(false);
+  const router = useRouter();
+  const { sets, addSet, updateSet } = useSets(workoutExerciseId);
+  const [editingSet, setEditingSet] = useState<number | null>(null);
+  const [tempValues, setTempValues] = useState<{ weight: number; reps: number } | null>(null);
 
   const currentVolume = sets ? calculateTotalVolume(sets) : 0;
   const volumeIncrease = calculateVolumeIncrease(currentVolume, previousVolume);
 
-  useEffect(() => {
-    if (sets && sets.length > 0) {
-      const firstCompleted = sets.find(s => s.completed);
-      if (firstCompleted && firstCompleted.weight > 0 && firstCompleted.reps > 0) {
-        setFirstSetValues({ weight: firstCompleted.weight, reps: firstCompleted.reps });
-      }
-    }
-  }, [sets]);
+  const handleCardClick = () => {
+    router.push('/analytics');
+  };
 
   const handleAddSet = async () => {
-    const defaultValues = firstSetValues || previousBest;
+    const defaultValues = previousBest || { weight: 0, reps: 0 };
     await addSet(workoutExerciseId, defaultValues);
   };
 
-  const handleDeleteSet = async (setId: number) => {
-    if (sets && sets.length > 1) {
-      await deleteSet(setId);
+  const startEditing = (setId: number, currentValues: { weight: number; reps: number }) => {
+    setEditingSet(setId);
+    setTempValues(currentValues);
+  };
+
+  const saveSet = async () => {
+    if (editingSet && tempValues) {
+      await updateSet(editingSet, {
+        weight: tempValues.weight,
+        reps: tempValues.reps,
+        completed: true
+      });
+      setEditingSet(null);
+      setTempValues(null);
     }
   };
 
-  const getDefaultValues = (index: number) => {
-    if (firstSetValues) return firstSetValues;
-    return previousBest;
+  const cancelEditing = () => {
+    setEditingSet(null);
+    setTempValues(null);
+  };
+
+  const handleSwipeLeft = (setId: number) => {
+    // This would need to be implemented with touch events
+    // For now, we'll keep a simple delete option
+    console.log('Swipe left on set:', setId);
   };
 
   return (
-    <GlassWidget className="p-4 md:p-6">
-      <div className="flex items-start justify-between mb-3 md:mb-4 gap-2">
+    <GlassWidget
+      className="p-4 md:p-6 cursor-pointer hover:scale-[1.01] transition-transform"
+      onClick={handleCardClick}
+    >
+      <div className="flex items-start justify-between mb-4 gap-2">
         <div className="flex-1 min-w-0">
-          <h3 className="text-lg md:text-xl font-semibold text-white truncate">{exercise.name}</h3>
+          <h3 className="text-lg md:text-xl font-semibold text-blue-400 truncate">{exercise.name}</h3>
           <p className="text-xs md:text-sm text-white/60">{exercise.muscleGroup}</p>
         </div>
         <VolumeIndicator percentage={volumeIncrease} />
       </div>
 
-      <div className="space-y-2 md:space-y-3">
-        <div className="grid grid-cols-5 gap-2 md:gap-3 mb-2 text-xs md:text-sm text-white/60 font-medium">
-          <div className="text-center">Set</div>
-          <div className="text-center hidden sm:block">Previous</div>
-          <div className="text-center sm:hidden">Prev</div>
-          <div className="text-center">Weight</div>
-          <div className="text-center">Reps</div>
-          <div className="text-center">Done</div>
-        </div>
-
+      <div className="space-y-3">
         {sets?.map((set, index) => (
-          <div key={set.id} className="flex items-center gap-2">
-            <SetRow
-              setNumber={index + 1}
-              set={set}
-              previousBest={getDefaultValues(index)}
-              onUpdate={(updates) => updateSet(set.id!, updates)}
-            />
-            {deleteMode && sets.length > 1 && (
-              <button
-                onClick={() => handleDeleteSet(set.id!)}
-                className="p-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 transition-colors"
-              >
-                <Trash2 size={16} className="text-red-400" />
-              </button>
+          <div key={set.id} className="flex items-center gap-3 p-3 rounded-lg bg-white/5">
+            <span className="text-white/60 font-mono text-sm w-8">#{index + 1}</span>
+
+            {editingSet === set.id ? (
+              <div className="flex-1 flex items-center gap-2">
+                <Input
+                  type="number"
+                  value={tempValues?.weight || ''}
+                  onChange={(e) => setTempValues(prev => ({ ...prev!, weight: parseFloat(e.target.value) || 0 }))}
+                  placeholder="kg"
+                  className="w-20 text-center"
+                  min="0"
+                  step="0.5"
+                  autoFocus
+                />
+                <span className="text-white/40">×</span>
+                <Input
+                  type="number"
+                  value={tempValues?.reps || ''}
+                  onChange={(e) => setTempValues(prev => ({ ...prev!, reps: parseInt(e.target.value) || 0 }))}
+                  placeholder="reps"
+                  className="w-20 text-center"
+                  min="0"
+                  step="1"
+                />
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    saveSet();
+                  }}
+                  className="p-1 rounded bg-green-500/20 text-green-400 hover:bg-green-500/30"
+                >
+                  <Check size={16} />
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    cancelEditing();
+                  }}
+                  className="p-1 rounded bg-red-500/20 text-red-400 hover:bg-red-500/30"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            ) : (
+              <div className="flex-1 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-white">
+                    {set.weight || 0} kg × {set.reps || 0} reps
+                  </span>
+                  {set.completed && (
+                    <div className="w-2 h-2 rounded-full bg-green-400" />
+                  )}
+                </div>
+                <div className="flex items-center gap-1">
+                  {previousBest && (
+                    <span className="text-white/40 text-xs">
+                      PB: {previousBest.weight}×{previousBest.reps}
+                    </span>
+                  )}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      startEditing(set.id!, { weight: set.weight, reps: set.reps });
+                    }}
+                    className="text-white/60 hover:text-white text-xs px-2 py-1 rounded bg-white/10 hover:bg-white/20"
+                  >
+                    Edit
+                  </button>
+                </div>
+              </div>
             )}
           </div>
         ))}
 
-        <div className="flex gap-2 mt-2">
-          <button
-            onClick={handleAddSet}
-            className="flex-1 btn btn-secondary"
-          >
-            <Plus size={16} />
-            Add Set
-          </button>
-
-          {sets && sets.length > 1 && (
-            <button
-              onClick={() => setDeleteMode(!deleteMode)}
-              className={`flex-1 btn ${deleteMode ? 'btn-danger' : 'btn-secondary'}`}
-            >
-              <Trash2 size={16} />
-              {deleteMode ? 'Done' : 'Remove'}
-            </button>
-          )}
-        </div>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            handleAddSet();
+          }}
+          className="w-full btn btn-secondary py-3"
+        >
+          <Plus size={16} />
+          Add Set
+        </button>
       </div>
 
       <div className="mt-4 pt-4 border-t border-white/10">

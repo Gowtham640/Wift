@@ -1,10 +1,12 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import { useLiveQuery } from 'dexie-react-hooks';
 import { Trash2, Edit, Calendar, Clock, Dumbbell } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import GlassWidget from '@/components/ui/GlassWidget';
 import { formatDuration } from '@/lib/utils';
+import { db } from '@/lib/db';
 import type { Workout } from '@/lib/db';
 
 interface WorkoutHistoryCardProps {
@@ -18,6 +20,19 @@ export default function WorkoutHistoryCard({ workout, onEdit, onDelete }: Workou
 
   const isCompleted = !!workout.endTime;
   const duration = workout.endTime ? workout.endTime - workout.startTime : 0;
+
+  // Fetch routine name if workout has routineId
+  const routine = useLiveQuery(async () => {
+    if (workout.routineId) {
+      return await db.routines.get(workout.routineId);
+    }
+    return null;
+  }, [workout.routineId]);
+
+  // Use actual routine name
+  const workoutName = routine?.name
+    ? routine.name
+    : (workout.routineId ? 'Unknown Routine' : 'Free Workout');
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -34,7 +49,7 @@ export default function WorkoutHistoryCard({ workout, onEdit, onDelete }: Workou
       <div className="flex items-start justify-between mb-3">
         <div className="flex-1">
           <h3 className="text-lg font-semibold text-white mb-2">
-            {workout.routineId ? 'Routine Workout' : 'Free Workout'}
+            {workoutName}
           </h3>
           <div className="space-y-1">
             <div className="flex items-center gap-2 text-sm text-white/60">

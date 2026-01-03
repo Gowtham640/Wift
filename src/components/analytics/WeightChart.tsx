@@ -30,6 +30,10 @@ interface WeightChartProps {
 }
 
 export default function WeightChart({ timePeriod }: WeightChartProps) {
+  // Track completed workouts to force re-renders when workouts are completed
+  const deletionTracker = useLiveQuery(async () => {
+    return await db.workouts.where('endTime').above(0).count(); // Changes when workouts are completed/incompleted
+  });
 
   // For now, we'll create mock weight data based on workouts
   // In a real implementation, you'd have a weight_logs table
@@ -38,6 +42,7 @@ export default function WeightChart({ timePeriod }: WeightChartProps) {
     const workouts = await db.workouts
       .where('date')
       .between(getLocalDateString(startDate), getLocalDateString(endDate))
+      .and(workout => workout.endTime !== undefined)
       .sortBy('date');
 
     // Get profile for current weight
@@ -60,7 +65,7 @@ export default function WeightChart({ timePeriod }: WeightChartProps) {
     });
 
     return mockData;
-  }, [timePeriod]);
+  }, [timePeriod, deletionTracker]);
 
   const data = {
     labels: weightData?.map(d => {

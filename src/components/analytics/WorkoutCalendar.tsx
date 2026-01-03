@@ -16,6 +16,11 @@ export default function WorkoutCalendar() {
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
 
+  // Track completed workouts to force re-renders when workouts are completed
+  const deletionTracker = useLiveQuery(async () => {
+    return await db.workouts.where('endTime').above(0).count(); // Changes when workouts are completed/incompleted
+  });
+
   // Get workout dates for the current month and calculate streaks
   const calendarData = useLiveQuery(async () => {
     const startOfMonth = new Date(year, month, 1);
@@ -31,6 +36,7 @@ export default function WorkoutCalendar() {
         `${ninetyDaysAgo.getFullYear()}-${String(ninetyDaysAgo.getMonth() + 1).padStart(2, '0')}-${String(ninetyDaysAgo.getDate()).padStart(2, '0')}`,
         getTodayString()
       )
+      .and(workout => workout.endTime !== undefined)
       .sortBy('date');
 
     // Get workouts for current month
@@ -40,6 +46,7 @@ export default function WorkoutCalendar() {
         `${startOfMonth.getFullYear()}-${String(startOfMonth.getMonth() + 1).padStart(2, '0')}-${String(startOfMonth.getDate()).padStart(2, '0')}`,
         `${endOfMonth.getFullYear()}-${String(endOfMonth.getMonth() + 1).padStart(2, '0')}-${String(endOfMonth.getDate()).padStart(2, '0')}`
       )
+      .and(workout => workout.endTime !== undefined)
       .toArray();
 
     const workoutDateSet = new Set(monthWorkouts.map(w => w.date));
@@ -89,7 +96,7 @@ export default function WorkoutCalendar() {
       longestStreak,
       totalWorkoutsThisMonth: monthWorkouts.length
     };
-  }, [year, month]);
+  }, [year, month, deletionTracker]);
 
   const getMonthDates = () => {
     const firstDay = new Date(year, month, 1);

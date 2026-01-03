@@ -56,12 +56,12 @@ export function useWorkouts() {
 
     // Check if there's already an incomplete workout for this routine today
     if (routineId) {
-      const todaysWorkouts = await db.workouts
-        .where('[routineId+date]')
-        .equals([routineId, today])
-        .toArray();
-
-      const existingWorkout = todaysWorkouts.find(workout => workout.endTime === undefined);
+      const allWorkouts = await db.workouts.toArray();
+      const existingWorkout = allWorkouts.find(workout =>
+        workout.routineId === routineId &&
+        workout.date === today &&
+        workout.endTime === undefined
+      );
 
       if (existingWorkout) {
         console.log('🔄 Found existing incomplete workout, reusing:', existingWorkout.id);

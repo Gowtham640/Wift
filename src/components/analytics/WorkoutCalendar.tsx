@@ -16,9 +16,9 @@ export default function WorkoutCalendar() {
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
 
-  // Track completed workouts to force re-renders when workouts are completed
+  // Track workouts to force re-renders when workouts are added/completed/deleted
   const deletionTracker = useLiveQuery(async () => {
-    return await db.workouts.where('endTime').above(0).count(); // Changes when workouts are completed/incompleted
+    return await db.workouts.count(); // Changes when workouts are added/deleted
   });
 
   // Get workout dates for the current month and calculate streaks
@@ -30,24 +30,28 @@ export default function WorkoutCalendar() {
     const ninetyDaysAgo = new Date();
     ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
 
-    const allWorkouts = await db.workouts
+    const allStreakWorkouts = await db.workouts
       .where('date')
       .between(
         `${ninetyDaysAgo.getFullYear()}-${String(ninetyDaysAgo.getMonth() + 1).padStart(2, '0')}-${String(ninetyDaysAgo.getDate()).padStart(2, '0')}`,
         getTodayString()
       )
-      .and(workout => workout.endTime !== undefined)
-      .sortBy('date');
+      .toArray();
+
+    const allWorkouts = allStreakWorkouts
+      .filter(workout => workout.endTime !== undefined)
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
     // Get workouts for current month
-    const monthWorkouts = await db.workouts
+    const allMonthWorkouts = await db.workouts
       .where('date')
       .between(
         `${startOfMonth.getFullYear()}-${String(startOfMonth.getMonth() + 1).padStart(2, '0')}-${String(startOfMonth.getDate()).padStart(2, '0')}`,
         `${endOfMonth.getFullYear()}-${String(endOfMonth.getMonth() + 1).padStart(2, '0')}-${String(endOfMonth.getDate()).padStart(2, '0')}`
       )
-      .and(workout => workout.endTime !== undefined)
       .toArray();
+
+    const monthWorkouts = allMonthWorkouts.filter(workout => workout.endTime !== undefined);
 
     const workoutDateSet = new Set(monthWorkouts.map(w => w.date));
 

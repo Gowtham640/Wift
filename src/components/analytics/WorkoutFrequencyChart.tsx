@@ -17,9 +17,9 @@ interface WorkoutFrequencyChartProps {
 export default function WorkoutFrequencyChart({
   timePeriod
 }: WorkoutFrequencyChartProps) {
-  // Track completed workouts to force re-renders when workouts are completed
+  // Track workouts to force re-renders when workouts are added/completed/deleted
   const deletionTracker = useLiveQuery(async () => {
-    return await db.workouts.where('endTime').above(0).count(); // Changes when workouts are completed/incompleted
+    return await db.workouts.count(); // Changes when workouts are added/deleted
   });
 
   const workoutStats = useLiveQuery(async () => {
@@ -29,11 +29,12 @@ export default function WorkoutFrequencyChart({
     const totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
 
     // Get unique workout days in the period (only completed workouts)
-    const workouts = await db.workouts
+    const allWorkouts = await db.workouts
       .where('date')
       .between(getLocalDateString(startDate), getLocalDateString(endDate))
-      .and(workout => workout.endTime !== undefined)
       .toArray();
+
+    const workouts = allWorkouts.filter(workout => workout.endTime !== undefined);
 
     const uniqueWorkoutDays = new Set(workouts.map(w => w.date)).size;
     const restDays = Math.max(0, totalDays - uniqueWorkoutDays);

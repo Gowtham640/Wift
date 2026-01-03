@@ -56,7 +56,7 @@ export default function SetRow({ setNumber, set, previousBest, onUpdate }: SetRo
       <div className="px-1 py-2 bg-transparent rounded-none">
       <input
   type="number"
-  value={set.weight || ''}
+  value={set.reps || ''}
   onChange={(e) => onUpdate({ weight: Number(e.target.value) || 0 })}
   placeholder="reps"
   className="

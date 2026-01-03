@@ -3,15 +3,74 @@ import { db, type Workout, type WorkoutExercise, type Set } from '@/lib/db';
 import type { WorkoutWithDetails, WorkoutExerciseWithDetails } from '@/lib/types';
 import { calculateTotalVolume, getTodayString } from '@/lib/utils';
 
+const cleanupIncompleteWorkouts = async () => {
+  try {
+    const oneWeekAgo = Date.now() - (7 * 24 * 60 * 60 * 1000); // More aggressive cleanup - 7 days
+
+    const allWorkouts = await db.workouts.toArray();
+    const oldIncompleteWorkouts = allWorkouts.filter(workout =>
+      workout.endTime === undefined && workout.startTime < oneWeekAgo
+    );
+
+    if (oldIncompleteWorkouts.length > 0) {
+      console.log(`🧹 Cleaning up ${oldIncompleteWorkouts.length} old incomplete workouts`);
+
+      for (const workout of oldIncompleteWorkouts) {
+        // Delete associated data first
+        const workoutExercises = await db.workout_exercises
+          .where('workoutId').equals(workout.id!)
+          .toArray();
+
+        await Promise.all(
+          workoutExercises.map(async (we) => {
+            await db.sets.where('workoutExerciseId').equals(we.id!).delete();
+            await db.workout_exercises.delete(we.id!);
+          })
+        );
+
+        await db.workouts.delete(workout.id!);
+      }
+    }
+  } catch (error) {
+    console.error('Failed to cleanup incomplete workouts:', error);
+  }
+};
+
 export function useWorkouts() {
+  // Clean up incomplete workouts on first load
+  useLiveQuery(async () => {
+    await cleanupIncompleteWorkouts();
+    return null; // This query doesn't return data
+  });
+
   const workouts = useLiveQuery(async () => {
-    return await db.workouts.orderBy('date').reverse().toArray();
+    // Only show completed workouts in history
+    const allWorkouts = await db.workouts.toArray();
+    return allWorkouts
+      .filter(workout => workout.endTime !== undefined)
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   });
 
   const createWorkout = async (routineId?: number) => {
+    const today = getTodayString();
+
+    // Check if there's already an incomplete workout for this routine today
+    if (routineId) {
+      const existingWorkout = await db.workouts
+        .where('[routineId+date]')
+        .equals([routineId, today])
+        .and(workout => workout.endTime === undefined)
+        .first();
+
+      if (existingWorkout) {
+        console.log('🔄 Found existing incomplete workout, reusing:', existingWorkout.id);
+        return existingWorkout.id!;
+      }
+    }
+
     const workoutId = await db.workouts.add({
       routineId,
-      date: getTodayString(),
+      date: today,
       startTime: Date.now()
     });
 
@@ -53,6 +112,11 @@ export function useWorkouts() {
 
     await db.workout_exercises.where('workoutId').equals(id).delete();
     await db.workouts.delete(id);
+
+    // Force analytics reactivity
+    await db.workouts.count(); // Trigger live query updates
+
+    console.log('🗑️ Workout deleted, analytics should update');
   };
 
   return {
@@ -67,7 +131,19 @@ export function useWorkout(id: number | null) {
   const workout = useLiveQuery(async () => {
     if (id === null) return null;
 
-    const workout = await db.workouts.get(id);
+    // Add retry logic for race conditions
+    let attempts = 0;
+    let workout = null;
+
+    while (attempts < 5 && !workout) {
+      workout = await db.workouts.get(id);
+      if (!workout) {
+        // Wait and retry
+        await new Promise(resolve => setTimeout(resolve, 50));
+        attempts++;
+      }
+    }
+
     if (!workout) return null;
 
     const routine = workout.routineId

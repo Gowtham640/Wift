@@ -27,12 +27,18 @@ interface MuscleDistributionChartProps {
 export default function MuscleDistributionChart({
   timePeriod
 }: MuscleDistributionChartProps) {
+  // Track completed workouts to force re-renders when workouts are completed
+  const deletionTracker = useLiveQuery(async () => {
+    return await db.workouts.where('endTime').above(0).count(); // Changes when workouts are completed/incompleted
+  });
+
   const filteredDistribution = useLiveQuery(async () => {
     const { startDate, endDate } = getDateRangeForPeriod(timePeriod);
 
     const workouts = await db.workouts
       .where('date')
       .between(getLocalDateString(startDate), getLocalDateString(endDate))
+      .and(workout => workout.endTime !== undefined)
       .toArray();
 
     const muscleVolumes: { [key: string]: number } = {};
@@ -73,7 +79,7 @@ export default function MuscleDistributionChart({
     );
 
     return data;
-  }, [timePeriod]);
+  }, [timePeriod, deletionTracker]);
 
   const sortedDistribution = [...(filteredDistribution || [])].sort((a, b) => b.volume - a.volume);
 

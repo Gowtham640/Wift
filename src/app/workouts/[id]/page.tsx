@@ -28,9 +28,19 @@ export default function WorkoutPage() {
   useEffect(() => {
     if (workoutId === null) {
       const initWorkout = async () => {
-        const id = await createWorkout(routineId ? parseInt(routineId) : undefined);
-        setCurrentWorkoutId(Number(id));
-        router.replace(`/workouts/${id}`);
+        try {
+          const id = await createWorkout(routineId ? parseInt(routineId) : undefined);
+
+          // Wait for workout to be fully created and queryable
+          await new Promise(resolve => setTimeout(resolve, 100));
+
+          setCurrentWorkoutId(Number(id));
+          router.replace(`/workouts/${id}`);
+        } catch (error) {
+          console.error('Failed to create workout:', error);
+          // Fallback to dashboard on error
+          router.push('/');
+        }
       };
       initWorkout();
     }

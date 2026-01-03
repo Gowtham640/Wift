@@ -23,6 +23,10 @@ interface TopExercisesProps {
 }
 
 export default function TopExercises({ timePeriod }: TopExercisesProps) {
+  // Track completed workouts to force re-renders when workouts are completed
+  const deletionTracker = useLiveQuery(async () => {
+    return await db.workouts.where('endTime').above(0).count(); // Changes when workouts are completed/incompleted
+  });
 
   const topExercises = useLiveQuery(async () => {
     const { startDate, endDate } = getDateRangeForPeriod(timePeriod);
@@ -30,6 +34,7 @@ export default function TopExercises({ timePeriod }: TopExercisesProps) {
     const workouts = await db.workouts
       .where('date')
       .between(getLocalDateString(startDate), getLocalDateString(endDate))
+      .and(workout => workout.endTime !== undefined)
       .toArray();
 
     const exerciseStats: { [key: number]: TopExercise } = {};
@@ -72,7 +77,7 @@ export default function TopExercises({ timePeriod }: TopExercisesProps) {
     return Object.values(exerciseStats)
       .sort((a, b) => b.totalVolume - a.totalVolume)
       .slice(0, 8);
-  }, [timePeriod]);
+  }, [timePeriod, deletionTracker]);
 
   return (
     <GlassWidget widgetId="analytics-top-exercises" showGlow allowColorChange className="p-4 md:p-6">

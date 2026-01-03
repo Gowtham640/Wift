@@ -22,12 +22,18 @@ interface PersonalRecordsProps {
 }
 
 export default function PersonalRecords({ timePeriod }: PersonalRecordsProps) {
+  // Track completed workouts to force re-renders when workouts are completed
+  const deletionTracker = useLiveQuery(async () => {
+    return await db.workouts.where('endTime').above(0).count(); // Changes when workouts are completed/incompleted
+  });
+
   const personalRecords = useLiveQuery(async () => {
     const { startDate, endDate } = getDateRangeForPeriod(timePeriod);
 
     const workouts = await db.workouts
       .where('date')
       .between(getLocalDateString(startDate), getLocalDateString(endDate))
+      .and(workout => workout.endTime !== undefined)
       .toArray();
 
     const workoutIds = workouts.map(w => w.id!);
@@ -93,7 +99,7 @@ export default function PersonalRecords({ timePeriod }: PersonalRecordsProps) {
 
     // Sort by max weight descending
     return records.sort((a, b) => b.maxWeight - a.maxWeight).slice(0, 10);
-  }, [timePeriod]);
+  }, [timePeriod, deletionTracker]);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);

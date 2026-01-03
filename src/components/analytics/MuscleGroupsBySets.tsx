@@ -19,6 +19,10 @@ interface MuscleGroupsBySetsProps {
 }
 
 export default function MuscleGroupsBySets({ timePeriod }: MuscleGroupsBySetsProps) {
+  // Track completed workouts to force re-renders when workouts are completed
+  const deletionTracker = useLiveQuery(async () => {
+    return await db.workouts.where('endTime').above(0).count(); // Changes when workouts are completed/incompleted
+  });
 
   const muscleGroupData = useLiveQuery(async () => {
     const { startDate, endDate } = getDateRangeForPeriod(timePeriod);
@@ -26,6 +30,7 @@ export default function MuscleGroupsBySets({ timePeriod }: MuscleGroupsBySetsPro
     const workouts = await db.workouts
       .where('date')
       .between(getLocalDateString(startDate), getLocalDateString(endDate))
+      .and(workout => workout.endTime !== undefined)
       .toArray();
 
     const muscleGroupSets: { [key: string]: number } = {};
@@ -64,7 +69,7 @@ export default function MuscleGroupsBySets({ timePeriod }: MuscleGroupsBySetsPro
       .sort((a, b) => b.totalSets - a.totalSets);
 
     return data;
-  }, [timePeriod]);
+  }, [timePeriod, deletionTracker]);
 
   return (
     <GlassWidget widgetId="analytics-muscle-groups-sets" showGlow allowColorChange className="p-4 md:p-6">

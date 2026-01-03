@@ -15,7 +15,9 @@ export interface Exercise {
   id?: number;
   name: string;
   muscleGroup: string;
+  subMuscleGroup?: string;
   equipment?: string;
+  aliases?: string[];
   isCustom: boolean;
 }
 

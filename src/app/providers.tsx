@@ -13,8 +13,10 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     // Run data migrations on app startup
     runDataMigrations();
 
-    // Initialize default exercises if needed
-    initializeDefaultExercises();
+    // Initialize default exercises if needed (deferred to avoid blocking hydration)
+    setTimeout(() => {
+      initializeDefaultExercises();
+    }, 1000);
   }, []);
 
   return (

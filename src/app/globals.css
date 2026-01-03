@@ -166,6 +166,16 @@ select.input option {
   color: rgba(255, 255, 255, 0.9);
 }
 
+/* Remove number input arrows */
+input[type='number']::-webkit-inner-spin-button,
+input[type='number']::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type='number'] {
+  -moz-appearance: textfield; /* Firefox */
+}
 /* Scrollbar Styles */
 ::-webkit-scrollbar {
   width: 8px;

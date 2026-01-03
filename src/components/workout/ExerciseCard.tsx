@@ -72,20 +72,19 @@ export default function ExerciseCard({
         <VolumeIndicator percentage={volumeIncrease} />
       </div>
 
-      <div className="space-y-2 md:space-y-3">
+      <div className="space-y-2 md:space-y-2">
         {/* Table Headers */}
-        <div className="grid grid-cols-6 gap-2 mb-3 text-sm text-white/60 font-medium bg-white/5 rounded-lg p-3">
+        <div className="grid grid-cols-5 gap-2 mb-3 text-sm text-white/60 font-medium bg-white/5 rounded-lg p-3">
           <div className="text-center">Set</div>
           <div className="text-center">Previous</div>
           <div className="text-center">Weight</div>
           <div className="text-center">Reps</div>
           <div className="text-center">Done</div>
-          <div className="text-center"></div>
         </div>
 
         <div className="space-y-1">
           {sets?.map((set, index) => (
-            <div key={set.id} className="grid grid-cols-6 gap-2 items-center bg-white/5 rounded-lg p-2">
+            <div key={set.id} className="grid grid-cols-5 gap-2 items-center bg-white/5 rounded-lg p-2">
               <SetRow
                 setNumber={index + 1}
                 set={set}

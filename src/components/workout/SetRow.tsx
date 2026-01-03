@@ -28,28 +28,54 @@ export default function SetRow({ setNumber, set, previousBest, onUpdate }: SetRo
         )}
       </div>
 
-      <div className="px-1 py-2">
-        <Input
-          type="number"
-          value={set.weight || ''}
-          onChange={(e) => onUpdate({ weight: parseFloat(e.target.value) || 0 })}
-          placeholder="kg"
-          className="text-center w-full py-2 text-sm"
-          min="0"
-          step="0.5"
-        />
+      <div className="py-2 bg-transparent rounded-none">
+        <input
+  type="number"
+  value={set.weight || ''}
+  onChange={(e) => onUpdate({ weight: Number(e.target.value) || 0 })}
+  placeholder="kg"
+  className="
+    w-full
+    bg-transparent
+    text-center
+    text-sm
+    border-0
+    outline-none
+    shadow-none
+    appearance-none
+    focus:outline-none
+    focus:ring-0
+    focus:border-0
+    p-0
+    m-0
+  "
+  inputMode="decimal"
+/>
       </div>
 
-      <div className="px-1 py-2">
-        <Input
-          type="number"
-          value={set.reps || ''}
-          onChange={(e) => onUpdate({ reps: parseInt(e.target.value) || 0 })}
-          placeholder="reps"
-          className="text-center w-full py-2 text-sm"
-          min="0"
-          step="1"
-        />
+      <div className="px-1 py-2 bg-transparent rounded-none">
+      <input
+  type="number"
+  value={set.weight || ''}
+  onChange={(e) => onUpdate({ weight: Number(e.target.value) || 0 })}
+  placeholder="reps"
+  className="
+    w-full
+    bg-transparent
+    text-center
+    text-sm
+    border-0
+    outline-none
+    shadow-none
+    appearance-none
+    focus:outline-none
+    focus:ring-0
+    focus:border-0
+    p-0
+    m-0
+  "
+  inputMode="decimal"
+/>
       </div>
 
       <div className="flex justify-center py-2">

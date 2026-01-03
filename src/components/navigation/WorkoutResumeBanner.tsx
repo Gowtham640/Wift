@@ -1,14 +1,19 @@
 'use client';
 
+import React from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Play, X, Dumbbell } from 'lucide-react';
+import { Play, X, Dumbbell, AlertTriangle } from 'lucide-react';
 import { db } from '@/lib/db';
 import Button from '@/components/ui/Button';
+import Modal from '@/components/ui/Modal';
+import { showToast } from '@/components/ui/Toast';
 
 export default function WorkoutResumeBanner() {
   const router = useRouter();
   const pathname = usePathname();
+  const [forceUpdate, setForceUpdate] = React.useState(0);
+  const [showDiscardModal, setShowDiscardModal] = React.useState(false);
 
   // Check if we're on a workout page
   const isOnWorkoutPage = pathname.startsWith('/workouts/');
@@ -46,7 +51,7 @@ export default function WorkoutResumeBanner() {
       exerciseCount,
       startTime: latestWorkout.startTime
     };
-  }, [isOnWorkoutPage]);
+  }, [isOnWorkoutPage, forceUpdate]);
 
   if (!incompleteWorkout || isOnWorkoutPage) {
     return null;
@@ -56,8 +61,13 @@ export default function WorkoutResumeBanner() {
     router.push(`/workouts/${incompleteWorkout.id}`);
   };
 
-  const handleDiscard = async () => {
-    if (confirm('Are you sure you want to discard this workout? This action cannot be undone.')) {
+  const handleDiscardClick = () => {
+    setShowDiscardModal(true);
+  };
+
+  const handleDiscardConfirm = async () => {
+    setShowDiscardModal(false);
+    try {
       // Delete the workout and all associated data
       const workoutExercises = await db.workout_exercises
         .where('workoutId')
@@ -79,7 +89,22 @@ export default function WorkoutResumeBanner() {
 
       // Delete the workout
       await db.workouts.delete(incompleteWorkout.id!);
+
+      // Show success message
+      showToast('Workout discarded successfully!', 'success');
+
+      // Force re-render to update the banner immediately
+      setForceUpdate(prev => prev + 1);
+
+      console.log('🗑️ Workout discarded, banner should disappear');
+    } catch (error) {
+      console.error('❌ Failed to discard workout:', error);
+      showToast('Failed to discard workout. Please try again.', 'error');
     }
+  };
+
+  const handleDiscardCancel = () => {
+    setShowDiscardModal(false);
   };
 
   return (
@@ -102,7 +127,7 @@ export default function WorkoutResumeBanner() {
 
           <div className="flex items-center gap-2">
             <Button
-              onClick={handleDiscard}
+              onClick={handleDiscardClick}
               variant="secondary"
               className="px-3 py-1.5 text-xs bg-white/10 hover:bg-white/20 border-white/20"
             >
@@ -119,6 +144,44 @@ export default function WorkoutResumeBanner() {
           </div>
         </div>
       </div>
+
+      {/* Discard Confirmation Modal */}
+      <Modal
+        isOpen={showDiscardModal}
+        onClose={handleDiscardCancel}
+        title="Discard Workout?"
+        size="sm"
+      >
+        <div className="space-y-6">
+          <div className="text-center">
+            <AlertTriangle className="mx-auto mb-4 text-red-400" size={48} />
+            <p className="text-white/80 mb-2">
+              Are you sure you want to discard this workout?
+            </p>
+            <p className="text-white/60 text-sm">
+              This will permanently delete all progress for <strong className="text-white">{incompleteWorkout?.routineName}</strong>.
+              This action cannot be undone.
+            </p>
+          </div>
+
+          <div className="flex gap-3">
+            <Button
+              onClick={handleDiscardCancel}
+              variant="secondary"
+              className="flex-1"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleDiscardConfirm}
+              variant="danger"
+              className="flex-1"
+            >
+              Discard Workout
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

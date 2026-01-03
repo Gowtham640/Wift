@@ -5,18 +5,17 @@ import { calculateTotalVolume, getTodayString } from '@/lib/utils';
 
 const cleanupIncompleteWorkouts = async () => {
   try {
-    // Find workouts older than 24 hours that are still in progress
-    const oneDayAgo = Date.now() - (24 * 60 * 60 * 1000);
+    const oneWeekAgo = Date.now() - (7 * 24 * 60 * 60 * 1000); // More aggressive cleanup - 7 days
 
     const allWorkouts = await db.workouts.toArray();
-    const incompleteWorkouts = allWorkouts.filter(workout =>
-      workout.endTime === undefined && workout.startTime < oneDayAgo
+    const oldIncompleteWorkouts = allWorkouts.filter(workout =>
+      workout.endTime === undefined && workout.startTime < oneWeekAgo
     );
 
-    if (incompleteWorkouts.length > 0) {
-      console.log(`🧹 Cleaning up ${incompleteWorkouts.length} incomplete workouts`);
+    if (oldIncompleteWorkouts.length > 0) {
+      console.log(`🧹 Cleaning up ${oldIncompleteWorkouts.length} old incomplete workouts`);
 
-      for (const workout of incompleteWorkouts) {
+      for (const workout of oldIncompleteWorkouts) {
         // Delete associated data first
         const workoutExercises = await db.workout_exercises
           .where('workoutId').equals(workout.id!)
@@ -53,9 +52,25 @@ export function useWorkouts() {
   });
 
   const createWorkout = async (routineId?: number) => {
+    const today = getTodayString();
+
+    // Check if there's already an incomplete workout for this routine today
+    if (routineId) {
+      const existingWorkout = await db.workouts
+        .where('[routineId+date]')
+        .equals([routineId, today])
+        .and(workout => workout.endTime === undefined)
+        .first();
+
+      if (existingWorkout) {
+        console.log('🔄 Found existing incomplete workout, reusing:', existingWorkout.id);
+        return existingWorkout.id!;
+      }
+    }
+
     const workoutId = await db.workouts.add({
       routineId,
-      date: getTodayString(),
+      date: today,
       startTime: Date.now()
     });
 

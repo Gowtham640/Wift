@@ -373,3 +373,4 @@ export async function initializeDefaultExercises() {
     console.error('❌ Failed to initialize default exercises:', error);
   }
 }
+

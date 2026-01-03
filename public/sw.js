@@ -4,7 +4,10 @@ self.addEventListener('install', (event) => {
   self.skipWaiting();
   event.waitUntil(
     caches.open('v11').then((cache) =>
-      cache.addAll(['/'])
+      cache.addAll([
+        '/',           // Dashboard (for root route)
+        '/offline.html' // Offline page (for uncached routes)
+      ])
     )
   );
 });
@@ -31,7 +34,26 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   if (event.request.mode === 'navigate') {
     event.respondWith(
-      caches.match('/').then((res) => res || fetch(event.request))
+      (async () => {
+        const cache = await caches.open('v11');
+
+        // Step 1: Check if requested route is cached
+        const cachedRoute = await cache.match(event.request);
+        if (cachedRoute) {
+          console.log('✅ Serving cached route:', event.request.url);
+          return cachedRoute;
+        }
+
+        // Step 2: Route not cached → serve offline page
+        const offlinePage = await cache.match('/offline.html');
+        if (offlinePage) {
+          console.log('📄 Serving offline page for:', event.request.url);
+          return offlinePage;
+        }
+
+        // Step 3: Emergency fallback
+        return fetch(event.request);
+      })()
     );
   }
 });

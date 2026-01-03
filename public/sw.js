@@ -2,7 +2,7 @@
 self.addEventListener('install', (event) => {
   self.skipWaiting();
   event.waitUntil(
-    caches.open('test-v1').then((cache) =>
+    caches.open('v11').then((cache) =>
       cache.addAll(['/'])
     )
   );

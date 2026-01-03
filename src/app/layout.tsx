@@ -1,6 +1,12 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import Providers from "./providers";
+import { registerSW } from "./sw-register";
+
+// Register SW immediately at module level
+if (typeof window !== 'undefined') {
+  registerSW();
+}
 
 export const metadata: Metadata = {
   title: "Gym Tracker",

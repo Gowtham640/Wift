@@ -9,19 +9,6 @@ import { runDataMigrations } from "@/lib/migrations";
 
 export default function Providers({ children }: { children: React.ReactNode }) {
   useEffect(() => {
-    // Register service worker for PWA functionality
-    if (typeof window !== 'undefined' && "serviceWorker" in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js')
-          .then(registration => {
-            console.log('✅ Service Worker registered successfully:', registration.scope);
-          })
-          .catch(error => {
-            console.error('❌ Service Worker registration failed:', error);
-          });
-      });
-    }
-
     // Run data migrations on app startup
     runDataMigrations();
   }, []);

@@ -5,6 +5,7 @@ import Sidebar from "@/components/navigation/Sidebar";
 import BottomNav from "@/components/navigation/BottomNav";
 import NetworkStatus from "@/components/NetworkStatus";
 import UpdatePrompt from "@/components/UpdatePrompt";
+import { TrackVisitedRoutes } from "@/components/TrackVisitedRoutes";
 import { runDataMigrations } from "@/lib/migrations";
 import { initializeDefaultExercises } from "@/lib/defaultExercises";
 
@@ -21,6 +22,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <>
+      <TrackVisitedRoutes />
       <NetworkStatus />
       <UpdatePrompt />
       <div className="flex min-h-screen">

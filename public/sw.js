@@ -37,8 +37,10 @@ self.addEventListener('fetch', (event) => {
       (async () => {
         const cache = await caches.open('v11');
 
-        // Step 1: Check if requested route is cached
-        const cachedRoute = await cache.match(event.request);
+        // Step 1: Check if requested route is cached (URL normalized)
+        const url = new URL(event.request.url);
+        const normalizedRequest = new Request(url.pathname);
+        const cachedRoute = await cache.match(normalizedRequest);
         if (cachedRoute) {
           console.log('✅ Serving cached route:', event.request.url);
           return cachedRoute;

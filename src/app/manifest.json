@@ -1,6 +1,6 @@
 {
-  "name": "MyWebSite",
-  "short_name": "MySite",
+  "name": "Wift",
+  "short_name": "Wift",
   "icons": [
     {
       "src": "/web-app-manifest-192x192.png",

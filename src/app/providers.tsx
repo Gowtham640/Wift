@@ -6,11 +6,15 @@ import BottomNav from "@/components/navigation/BottomNav";
 import NetworkStatus from "@/components/NetworkStatus";
 import UpdatePrompt from "@/components/UpdatePrompt";
 import { runDataMigrations } from "@/lib/migrations";
+import { initializeDefaultExercises } from "@/lib/defaultExercises";
 
 export default function Providers({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // Run data migrations on app startup
     runDataMigrations();
+
+    // Initialize default exercises if needed
+    initializeDefaultExercises();
   }, []);
 
   return (

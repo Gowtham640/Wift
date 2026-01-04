@@ -20,6 +20,7 @@ import { getLocalDateString, getISTDateString, getISTTimestamp } from '@/lib/uti
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
 import { Plus, TrendingUp, TrendingDown } from 'lucide-react';
+import { useProfile } from '@/hooks/useProfile';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend);
 
@@ -35,32 +36,100 @@ interface WeightChartProps {
 export default function WeightChart({ timePeriod }: WeightChartProps) {
   const [newWeight, setNewWeight] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const { updateProfile } = useProfile();
+
+  // Debug function for weight entries
+  if (typeof window !== 'undefined') {
+    (window as any).debugWeight = async () => {
+      console.log('⚖️ WEIGHT DEBUG: Checking weight entries...');
+
+      try {
+        // Check if table exists
+        console.log('🗄️ Weight table exists:', !!db.weight_entries);
+
+        // Get all weight entries
+        const allWeights = await db.weight_entries.toArray();
+        console.log('⚖️ Total weight entries:', allWeights.length);
+
+        if (allWeights.length > 0) {
+          console.log('⚖️ All weight entries:', allWeights);
+          console.log('⚖️ Latest entry:', allWeights[allWeights.length - 1]);
+        }
+
+        // Test date functions
+        console.log('📅 IST Date String:', getISTDateString());
+        console.log('⏰ IST Timestamp:', getISTTimestamp());
+
+        // Test a manual insertion
+        console.log('🧪 Testing manual weight insertion...');
+        const testEntry = {
+          weight: 75.5,
+          date: getISTDateString(),
+          createdAt: getISTTimestamp()
+        };
+        console.log('🧪 Test entry to insert:', testEntry);
+
+        const testId = await db.weight_entries.add(testEntry);
+        console.log('🧪 Test insertion result ID:', testId);
+
+        const retrieved = await db.weight_entries.get(testId);
+        console.log('🧪 Retrieved test entry:', retrieved);
+
+        // Clean up test entry
+        await db.weight_entries.delete(testId);
+        console.log('🧪 Cleaned up test entry');
+
+    } catch (error) {
+      console.error('❌ Weight debug failed:', error);
+      const errorDetails = error instanceof Error ? {
+        message: error.message,
+        stack: error.stack
+      } : { error: String(error) };
+      console.error('❌ Error details:', errorDetails);
+    }
+    };
+  }
 
   // Get weight entries for the time period
   const weightData = useLiveQuery(async () => {
     const { startDate, endDate } = getDateRangeForPeriod(timePeriod);
 
-    const weightEntries = await db.weight_entries
-      .where('date')
-      .between(getLocalDateString(startDate), getLocalDateString(endDate))
-      .sortBy('date');
+    const startDateStr = getLocalDateString(startDate);
+    const endDateStr = getLocalDateString(endDate);
+
+    // Get all entries first (manual filtering instead of indexed query)
+    const allEntries = await db.weight_entries.toArray();
+
+    // Manual filtering for date range
+    const weightEntries = allEntries
+      .filter(entry => entry.date >= startDateStr && entry.date <= endDateStr)
+      .sort((a, b) => a.date.localeCompare(b.date));
 
     return weightEntries;
-  }, [timePeriod]);
+  }, [timePeriod, refreshTrigger]);
 
   const addWeightEntry = async () => {
     const weight = parseFloat(newWeight);
     if (isNaN(weight) || weight <= 0) return;
 
     try {
-      await db.weight_entries.add({
+      // Add to weight_entries for analytics tracking
+      const result = await db.weight_entries.add({
         weight: weight,
         date: getISTDateString(),
         createdAt: getISTTimestamp()
       });
 
+      // Also update the profile weight so dashboard shows current weight
+      await updateProfile({ weightKg: weight });
+
+      // Force refresh to ensure UI updates immediately
+      setRefreshTrigger(prev => prev + 1);
+
       setNewWeight('');
       setShowAddForm(false);
+
     } catch (error) {
       console.error('Failed to add weight entry:', error);
     }

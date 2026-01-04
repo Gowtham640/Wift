@@ -47,51 +47,140 @@ export default function ExerciseDetailPage() {
   const [selectedTimePeriod, setSelectedTimePeriod] = useState<TimePeriod>('month');
 
   const history = useLiveQuery(async () => {
-    if (!exercise) return [];
+    console.log('🏋️ ExerciseDetail: useLiveQuery triggered - exerciseId:', exerciseId, 'timePeriod:', selectedTimePeriod);
+
+    if (!exercise) {
+      console.log('🏋️ ExerciseDetail: No exercise loaded yet');
+      return [];
+    }
+
+    console.log('🏋️ ExerciseDetail: Loading analytics for exercise:', exercise.name, '(ID:', exerciseId, ')');
 
     const { startDate, endDate } = getDateRangeForPeriod(selectedTimePeriod);
+    const startDateStr = getLocalDateString(startDate);
+    const endDateStr = getLocalDateString(endDate);
 
-    // Get workouts within the selected time period
-    const workoutsInPeriod = await db.workouts
-      .where('date')
-      .between(getLocalDateString(startDate), getLocalDateString(endDate))
-      .toArray();
+    console.log('📅 ExerciseDetail: Date range:', startDateStr, 'to', endDateStr);
+
+    // Get ALL workouts first, then filter manually (same fix as weight chart)
+    const allWorkouts = await db.workouts.toArray();
+    console.log('🏋️ ExerciseDetail: Total workouts in DB:', allWorkouts.length);
+
+    const workoutsInPeriod = allWorkouts.filter(workout =>
+      workout.endTime !== undefined &&
+      workout.date >= startDateStr &&
+      workout.date <= endDateStr
+    );
+
+    console.log('🏋️ ExerciseDetail: Workouts in time period:', workoutsInPeriod.length);
 
     const workoutIds = workoutsInPeriod.map(w => w.id!);
+    console.log('🏋️ ExerciseDetail: Workout IDs to check:', workoutIds);
 
     // Get workout exercises for this exercise within the time period
-    const workoutExercises = await db.workout_exercises
-      .where('workoutId')
-      .anyOf(workoutIds)
-      .and(we => we.exerciseId === exerciseId)
-      .toArray();
+    const allWorkoutExercises = await db.workout_exercises.toArray();
+    console.log('🏋️ ExerciseDetail: Total workout exercises in DB:', allWorkoutExercises.length);
+
+    const workoutExercises = allWorkoutExercises.filter(we =>
+      workoutIds.includes(we.workoutId) && we.exerciseId === exerciseId
+    );
+
+    console.log('🏋️ ExerciseDetail: Workout exercises for this exercise:', workoutExercises.length);
 
     // Get history data
+    console.log('🏋️ ExerciseDetail: Processing', workoutExercises.length, 'workout exercises');
+
     const historyData: ExerciseHistory[] = await Promise.all(
-      workoutExercises.map(async (we) => {
+      workoutExercises.map(async (we, index) => {
+        console.log('🏋️ ExerciseDetail: Processing workout exercise', index + 1, '/', workoutExercises.length, '- ID:', we.id);
+
         const workout = workoutsInPeriod.find(w => w.id === we.workoutId);
+        console.log('🏋️ ExerciseDetail: Found workout:', workout ? workout.date : 'NOT FOUND');
+
         const sets = await db.sets
           .where('workoutExerciseId')
           .equals(we.id!)
           .and(s => s.completed)
           .toArray();
 
+        console.log('🏋️ ExerciseDetail: Found', sets.length, 'completed sets for workout exercise', we.id);
+
         const totalVolume = sets.reduce((sum, s) => sum + s.weight * s.reps, 0);
         const maxWeight = sets.length > 0 ? Math.max(...sets.map(s => s.weight)) : 0;
 
-        return {
+        const historyEntry = {
           date: workout?.date || '',
           sets,
           totalVolume,
           maxWeight
         };
+
+        console.log('🏋️ ExerciseDetail: Created history entry:', {
+          date: historyEntry.date,
+          setsCount: historyEntry.sets.length,
+          totalVolume: historyEntry.totalVolume,
+          maxWeight: historyEntry.maxWeight
+        });
+
+        return historyEntry;
       })
     );
 
-    return historyData
-      .filter(h => h.sets.length > 0)
-      .sort((a, b) => b.date.localeCompare(a.date));
+    const filteredHistory = historyData.filter(h => h.sets.length > 0);
+    console.log('🏋️ ExerciseDetail: After filtering empty sets:', filteredHistory.length, 'entries');
+
+    const sortedHistory = filteredHistory.sort((a, b) => b.date.localeCompare(a.date));
+    console.log('🏋️ ExerciseDetail: Final sorted history:', sortedHistory.length, 'entries');
+
+    return sortedHistory;
   }, [exerciseId, exercise, selectedTimePeriod]);
+
+  // Debug function for exercise analytics
+  if (typeof window !== 'undefined') {
+    (window as any).debugExercise = async () => {
+      console.log('🏋️ EXERCISE DEBUG: Analyzing exercise analytics for ID:', exerciseId);
+
+      if (!exercise) {
+        console.log('🏋️ EXERCISE DEBUG: No exercise loaded');
+        return;
+      }
+
+      console.log('🏋️ EXERCISE DEBUG: Exercise:', exercise.name, '(ID:', exerciseId, ')');
+
+      // Check all workouts
+      const allWorkouts = await db.workouts.toArray();
+      console.log('🏋️ EXERCISE DEBUG: Total workouts:', allWorkouts.length);
+
+      const completedWorkouts = allWorkouts.filter(w => w.endTime);
+      console.log('🏋️ EXERCISE DEBUG: Completed workouts:', completedWorkouts.length);
+
+      // Check workout exercises for this exercise
+      const allWorkoutExercises = await db.workout_exercises.toArray();
+      const exerciseWorkoutExercises = allWorkoutExercises.filter(we => we.exerciseId === exerciseId);
+      console.log('🏋️ EXERCISE DEBUG: Workout exercises for this exercise:', exerciseWorkoutExercises.length);
+
+      // Check sets for this exercise
+      let totalSets = 0;
+      let completedSets = 0;
+
+      for (const we of exerciseWorkoutExercises) {
+        const sets = await db.sets.where('workoutExerciseId').equals(we.id!).toArray();
+        totalSets += sets.length;
+        completedSets += sets.filter(s => s.completed).length;
+      }
+
+      console.log('🏋️ EXERCISE DEBUG: Total sets:', totalSets, 'Completed sets:', completedSets);
+
+      // Check current history data
+      console.log('🏋️ EXERCISE DEBUG: Current history data:', history);
+
+      if (history && history.length > 0) {
+        console.log('🏋️ EXERCISE DEBUG: Sample history entry:', history[0]);
+      } else {
+        console.log('🏋️ EXERCISE DEBUG: No history data found!');
+      }
+    };
+  }
 
   if (loading) {
     return (

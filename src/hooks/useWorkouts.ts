@@ -54,20 +54,41 @@ export function useWorkouts() {
   const createWorkout = async (routineId?: number, customDate?: string) => {
     const workoutDate = customDate || getTodayString();
 
-    // Check if there's already an incomplete workout for this routine on the selected date
-    if (routineId) {
-      const allWorkouts = await db.workouts.toArray();
-      const existingWorkout = allWorkouts.find(workout =>
-        workout.routineId === routineId &&
-        workout.date === workoutDate &&
-        workout.endTime === undefined
-      );
+    // FIRST: Check for ANY incomplete workout (not just same routine/date)
+    const allWorkouts = await db.workouts.toArray();
+    const incompleteWorkouts = allWorkouts.filter(workout => workout.endTime === undefined);
 
-      if (existingWorkout) {
-        console.log('🔄 Found existing incomplete workout, reusing:', existingWorkout.id);
-        return existingWorkout.id!;
+    if (incompleteWorkouts.length > 0) {
+      console.log('⚠️ Found', incompleteWorkouts.length, 'incomplete workout(s). Discarding them to ensure only one active workout.');
+
+      // Delete all incomplete workouts and their associated data
+      for (const workout of incompleteWorkouts) {
+        console.log('🗑️ Discarding incomplete workout:', workout.id);
+
+        // Delete associated workout exercises and sets
+        const workoutExercises = await db.workout_exercises
+          .where('workoutId')
+          .equals(workout.id!)
+          .toArray();
+
+        await Promise.all(
+          workoutExercises.map(async (we) => {
+            await db.sets.where('workoutExerciseId').equals(we.id!).delete();
+          })
+        );
+
+        await db.workout_exercises
+          .where('workoutId')
+          .equals(workout.id!)
+          .delete();
+
+        await db.workouts.delete(workout.id!);
       }
+
+      console.log('✅ All incomplete workouts discarded. Proceeding with new workout creation.');
     }
+
+    // Continue with normal workout creation...
 
     const workoutId = await db.workouts.add({
       routineId,

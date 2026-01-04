@@ -12,7 +12,6 @@ import { showToast } from '@/components/ui/Toast';
 export default function WorkoutResumeBanner() {
   const router = useRouter();
   const pathname = usePathname();
-  const [forceUpdate, setForceUpdate] = React.useState(0);
   const [showDiscardModal, setShowDiscardModal] = React.useState(false);
 
   // Check if we're on a workout page
@@ -23,17 +22,18 @@ export default function WorkoutResumeBanner() {
     if (isOnWorkoutPage) return null; // Don't show on workout pages
 
     const allWorkouts = await db.workouts.toArray();
-    const workouts = allWorkouts.filter(workout => workout.endTime === undefined);
+    const incompleteWorkouts = allWorkouts.filter(workout => workout.endTime === undefined);
 
-    if (workouts.length === 0) return null;
+    if (incompleteWorkouts.length === 0) return null;
 
-    // Get the most recent incomplete workout
-    const latestWorkout = workouts.sort((a, b) => (b.startTime || 0) - (a.startTime || 0))[0];
+    // Since we ensure only one active workout, there should only be one
+    const workout = incompleteWorkouts[0];
+    console.log('📱 Found incomplete workout:', workout.id, 'started at:', new Date(workout.startTime || 0).toLocaleString());
 
     // Get routine name if it exists
     let routineName = 'Free Workout';
-    if (latestWorkout.routineId) {
-      const routine = await db.routines.get(latestWorkout.routineId);
+    if (workout.routineId) {
+      const routine = await db.routines.get(workout.routineId);
       if (routine) {
         routineName = routine.name;
       }
@@ -42,16 +42,16 @@ export default function WorkoutResumeBanner() {
     // Get exercise count
     const exerciseCount = await db.workout_exercises
       .where('workoutId')
-      .equals(latestWorkout.id!)
+      .equals(workout.id!)
       .count();
 
     return {
-      id: latestWorkout.id,
+      id: workout.id,
       routineName,
       exerciseCount,
-      startTime: latestWorkout.startTime
+      startTime: workout.startTime
     };
-  }, [isOnWorkoutPage, forceUpdate]);
+  }, [isOnWorkoutPage]);
 
   if (!incompleteWorkout || isOnWorkoutPage) {
     return null;
@@ -68,11 +68,15 @@ export default function WorkoutResumeBanner() {
   const handleDiscardConfirm = async () => {
     setShowDiscardModal(false);
     try {
+      console.log('🗑️ Starting workout discard process for workout:', incompleteWorkout.id);
+
       // Delete the workout and all associated data
       const workoutExercises = await db.workout_exercises
         .where('workoutId')
-        .equals(incompleteWorkout.id!)
+        .equals(incompleteWorkout!.id!)
         .toArray();
+
+      console.log('🗑️ Found', workoutExercises.length, 'workout exercises to delete');
 
       // Delete all sets for this workout
       await Promise.all(
@@ -84,19 +88,23 @@ export default function WorkoutResumeBanner() {
       // Delete workout exercises
       await db.workout_exercises
         .where('workoutId')
-        .equals(incompleteWorkout.id!)
+        .equals(incompleteWorkout!.id!)
         .delete();
 
       // Delete the workout
-      await db.workouts.delete(incompleteWorkout.id!);
+      await db.workouts.delete(incompleteWorkout!.id!);
+
+      console.log('🗑️ Workout and all associated data deleted');
+
+      // Verify deletion
+      const remainingIncomplete = await db.workouts.filter(w => w.endTime === undefined).count();
+      console.log('🗑️ Remaining incomplete workouts:', remainingIncomplete);
 
       // Show success message
       showToast('Workout discarded successfully!', 'success');
 
-      // Force re-render to update the banner immediately
-      setForceUpdate(prev => prev + 1);
+      console.log('🗑️ Workout discarded successfully - banner should disappear automatically');
 
-      console.log('🗑️ Workout discarded, banner should disappear');
     } catch (error) {
       console.error('❌ Failed to discard workout:', error);
       showToast('Failed to discard workout. Please try again.', 'error');

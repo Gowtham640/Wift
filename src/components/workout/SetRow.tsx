@@ -57,7 +57,7 @@ export default function SetRow({ setNumber, set, previousBest, onUpdate }: SetRo
       <input
   type="number"
   value={set.reps || ''}
-  onChange={(e) => onUpdate({ weight: Number(e.target.value) || 0 })}
+  onChange={(e) => onUpdate({ reps: Number(e.target.value) || 0 })}
   placeholder="reps"
   className="
     w-full

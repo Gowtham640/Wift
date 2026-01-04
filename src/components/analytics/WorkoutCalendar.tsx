@@ -51,7 +51,7 @@ export default function WorkoutCalendar() {
 
     const workoutDateSet = new Set(monthWorkouts.map(w => w.date));
 
-    // Calculate current streak
+    // Calculate streaks (moved to separate component)
     let currentStreak = 0;
     const today = getTodayString();
     let checkDate = new Date();

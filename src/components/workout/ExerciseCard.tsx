@@ -27,6 +27,25 @@ export default function ExerciseCard({
   const { sets, addSet, updateSet, deleteSet } = useSets(workoutExerciseId);
   const [deleteMode, setDeleteMode] = useState(false);
 
+  // Shared values for cascading updates
+  const [sharedWeight, setSharedWeight] = useState<number | undefined>(previousBest?.weight);
+  const [sharedReps, setSharedReps] = useState<number | undefined>(previousBest?.reps);
+
+  // Update shared values when previousBest changes
+  useEffect(() => {
+    setSharedWeight(previousBest?.weight);
+    setSharedReps(previousBest?.reps);
+  }, [previousBest]);
+
+  // Handle value changes from any set (cascading effect)
+  const handleValueChange = (field: 'weight' | 'reps', value: number) => {
+    if (field === 'weight') {
+      setSharedWeight(value);
+    } else {
+      setSharedReps(value);
+    }
+  };
+
   const currentVolume = sets ? calculateTotalVolume(sets) : 0;
   const volumeIncrease = calculateVolumeIncrease(currentVolume, previousVolume);
 
@@ -89,7 +108,10 @@ export default function ExerciseCard({
                 setNumber={index + 1}
                 set={set}
                 previousBest={getDefaultValues(index)}
+                sharedWeight={sharedWeight}
+                sharedReps={sharedReps}
                 onUpdate={(updates) => updateSet(set.id!, updates)}
+                onValueChange={handleValueChange}
               />
               <div className="flex justify-center">
                 {deleteMode && sets.length > 1 && (

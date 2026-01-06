@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { useWorkout, useWorkouts } from '@/hooks/useWorkouts';
 import { useRoutines, useRoutine } from '@/hooks/useRoutines';
+import { useExercises } from '@/hooks/useExercises';
 import { ArrowLeft, Check, Clock, Plus, Calendar } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import ExerciseCard from '@/components/workout/ExerciseCard';
@@ -11,7 +12,7 @@ import GlassWidget from '@/components/ui/GlassWidget';
 import Modal from '@/components/ui/Modal';
 import { showToast } from '@/components/ui/Toast';
 import { formatDuration, getTodayString } from '@/lib/utils';
-import { db } from '@/lib/db';
+import { db, type Workout } from '@/lib/db';
 
 export default function WorkoutPage() {
   const router = useRouter();
@@ -33,7 +34,14 @@ export default function WorkoutPage() {
   const [elapsedTime, setElapsedTime] = useState(0);
   const [showUpdateRoutineModal, setShowUpdateRoutineModal] = useState(false);
   const [showDateSelectionModal, setShowDateSelectionModal] = useState(false);
+  const [showAddExerciseModal, setShowAddExerciseModal] = useState(false);
+  const [showAddExerciseToWorkoutModal, setShowAddExerciseToWorkoutModal] = useState(false);
+  const [showEditWorkoutModal, setShowEditWorkoutModal] = useState(false);
+  const [editWorkoutDate, setEditWorkoutDate] = useState('');
+  const [editWorkoutDuration, setEditWorkoutDuration] = useState('');
+  const [exerciseSearch, setExerciseSearch] = useState('');
   const [selectedDate, setSelectedDate] = useState(getTodayString());
+  const { exercises: allExercises } = useExercises({ search: exerciseSearch });
 
   useEffect(() => {
     if (workoutId === null) {
@@ -259,6 +267,83 @@ export default function WorkoutPage() {
     }
   };
 
+  const handleAddExerciseToRoutine = async (exerciseId: number) => {
+    if (!workout?.workout.routineId) {
+      showToast('Cannot add exercise - no routine selected', 'error');
+      return;
+    }
+
+    try {
+      await addExerciseToRoutine(workout.workout.routineId, exerciseId, 3, 8); // Default 3 sets, 8 reps
+      showToast('Exercise added to routine!', 'success');
+      setShowAddExerciseModal(false);
+    } catch (error) {
+      console.error('Failed to add exercise to routine:', error);
+      showToast('Failed to add exercise to routine', 'error');
+    }
+  };
+
+  const handleAddExerciseToWorkout = async (exerciseId: number) => {
+    if (!currentWorkoutId) {
+      showToast('Cannot add exercise - no workout selected', 'error');
+      return;
+    }
+
+    try {
+      await addExerciseToWorkout(currentWorkoutId, exerciseId);
+      showToast('Exercise added to workout!', 'success');
+      setShowAddExerciseToWorkoutModal(false);
+    } catch (error) {
+      console.error('Failed to add exercise to workout:', error);
+      showToast('Failed to add exercise to workout', 'error');
+    }
+  };
+
+  const handleSaveWorkoutEdits = async () => {
+    if (!currentWorkoutId) return;
+
+    try {
+      const updates: Partial<Workout> = {};
+
+      // Update date if changed
+      if (editWorkoutDate && editWorkoutDate !== workout!.workout.date) {
+        updates.date = editWorkoutDate;
+      }
+
+      // Update duration if provided
+      if (editWorkoutDuration) {
+        const durationMs = parseDurationString(editWorkoutDuration);
+        updates.endTime = workout!.workout.startTime + durationMs;
+      }
+
+      if (Object.keys(updates).length > 0) {
+        await db.workouts.update(currentWorkoutId, updates);
+        setShowEditWorkoutModal(false);
+        showToast('Workout updated!', 'success');
+        // Force a page refresh to show updated data
+        window.location.reload();
+      }
+    } catch (error) {
+      console.error('Failed to update workout:', error);
+      showToast('Failed to update workout', 'error');
+    }
+  };
+
+  const parseDurationString = (durationStr: string): number => {
+    // Simple parser for formats like "45m", "1h 30m", "90"
+    const hours = durationStr.match(/(\d+)h/);
+    const minutes = durationStr.match(/(\d+)m/);
+    const plainMinutes = durationStr.match(/^(\d+)$/);
+
+    let totalMs = 0;
+
+    if (hours) totalMs += parseInt(hours[1]) * 60 * 60 * 1000;
+    if (minutes) totalMs += parseInt(minutes[1]) * 60 * 1000;
+    if (plainMinutes && !hours && !minutes) totalMs += parseInt(plainMinutes[1]) * 60 * 1000;
+
+    return totalMs;
+  };
+
   return (
     <div className="space-y-4 md:space-y-6 w-full">
       {/* Loading overlay - non-blocking */}
@@ -300,7 +385,19 @@ export default function WorkoutPage() {
                     </h1>
                     <div className="flex items-center gap-2 text-white/60 text-xs md:text-sm mt-1">
                       <Clock size={14} />
-                      <span>{formatDuration(elapsedTime)}</span>
+                      <span
+                        className={isCompleted ? 'cursor-pointer hover:text-white/80' : ''}
+                        onClick={() => {
+                          if (isCompleted) {
+                            setEditWorkoutDate(workout.workout.date);
+                            setEditWorkoutDuration('45m');
+                            setShowEditWorkoutModal(true);
+                          }
+                        }}
+                      >
+                        {formatDuration(workout.duration || elapsedTime)}
+                        {isCompleted && <span className="ml-1 text-xs">✏️</span>}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -346,6 +443,38 @@ export default function WorkoutPage() {
                   />
                 ))
               )}
+
+              {/* Add Exercise to Workout (for completed workouts) */}
+              {isCompleted && (
+                <GlassWidget className="p-4 md:p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-lg font-semibold text-white mb-1">Add Exercise</h3>
+                      <p className="text-sm text-white/60">Add exercises to this completed workout</p>
+                    </div>
+                    <Button onClick={() => setShowAddExerciseToWorkoutModal(true)} className="px-4 py-2">
+                      <Plus size={16} />
+                      Add Exercise
+                    </Button>
+                  </div>
+                </GlassWidget>
+              )}
+
+              {/* Add Exercise to Routine */}
+              {workout.routine && (
+                <GlassWidget className="p-4 md:p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-lg font-semibold text-white mb-1">Add to Routine</h3>
+                      <p className="text-sm text-white/60">Add exercises to your routine permanently</p>
+                    </div>
+                    <Button onClick={() => setShowAddExerciseModal(true)} className="px-4 py-2">
+                      <Plus size={16} />
+                      Add Exercise
+                    </Button>
+                  </div>
+                </GlassWidget>
+              )}
             </div>
           </>
         );
@@ -384,6 +513,66 @@ export default function WorkoutPage() {
               className="flex-1"
             >
               No, Just Complete
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Edit Workout Modal */}
+      <Modal
+        isOpen={showEditWorkoutModal}
+        onClose={() => setShowEditWorkoutModal(false)}
+        title="Edit Workout"
+      >
+        <div className="space-y-6">
+          <div className="text-center">
+            <Calendar className="mx-auto mb-4 text-blue-400" size={48} />
+            <p className="text-white/80 mb-4">
+              Modify workout date and duration
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-white/80 mb-2">
+                Workout Date
+              </label>
+              <input
+                type="date"
+                value={editWorkoutDate}
+                onChange={(e) => setEditWorkoutDate(e.target.value)}
+                max={getTodayString()}
+                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-white/80 mb-2">
+                Duration (e.g., 45m, 1h 30m)
+              </label>
+              <input
+                type="text"
+                value={editWorkoutDuration}
+                onChange={(e) => setEditWorkoutDuration(e.target.value)}
+                placeholder="45m"
+                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+          </div>
+
+          <div className="flex gap-3">
+            <Button
+              onClick={() => setShowEditWorkoutModal(false)}
+              variant="secondary"
+              className="flex-1"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveWorkoutEdits}
+              className="flex-1"
+            >
+              Save Changes
             </Button>
           </div>
         </div>
@@ -429,6 +618,106 @@ export default function WorkoutPage() {
               className="flex-1"
             >
               Start Workout
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Add Exercise to Workout Modal */}
+      <Modal
+        isOpen={showAddExerciseToWorkoutModal}
+        onClose={() => {
+          setShowAddExerciseToWorkoutModal(false);
+          setExerciseSearch('');
+        }}
+        title="Add Exercise to Workout"
+      >
+        <div className="space-y-4">
+          <p className="text-white/80 mb-4">
+            Select an exercise to add to this workout.
+          </p>
+
+          <input
+            type="text"
+            value={exerciseSearch}
+            onChange={(e) => setExerciseSearch(e.target.value)}
+            placeholder="Search exercises..."
+            className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+
+          <div className="max-h-96 overflow-y-auto space-y-2">
+            {allExercises?.map((exercise) => (
+              <button
+                key={exercise.id}
+                onClick={() => handleAddExerciseToWorkout(exercise.id!)}
+                className="w-full p-3 bg-white/5 hover:bg-white/10 rounded-lg text-left transition-colors"
+              >
+                <div className="font-medium text-white">{exercise.name}</div>
+                <div className="text-sm text-white/60">{exercise.muscleGroup}</div>
+              </button>
+            ))}
+          </div>
+
+          <div className="flex gap-3 pt-4">
+            <Button
+              onClick={() => {
+                setShowAddExerciseToWorkoutModal(false);
+                setExerciseSearch('');
+              }}
+              variant="secondary"
+              className="flex-1"
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Add Exercise to Routine Modal */}
+      <Modal
+        isOpen={showAddExerciseModal}
+        onClose={() => {
+          setShowAddExerciseModal(false);
+          setExerciseSearch('');
+        }}
+        title="Add Exercise to Routine"
+      >
+        <div className="space-y-4">
+          <p className="text-white/80 mb-4">
+            Select an exercise to add to your routine permanently.
+          </p>
+
+          <input
+            type="text"
+            value={exerciseSearch}
+            onChange={(e) => setExerciseSearch(e.target.value)}
+            placeholder="Search exercises..."
+            className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+
+          <div className="max-h-96 overflow-y-auto space-y-2">
+            {allExercises?.map((exercise) => (
+              <button
+                key={exercise.id}
+                onClick={() => handleAddExerciseToRoutine(exercise.id!)}
+                className="w-full p-3 bg-white/5 hover:bg-white/10 rounded-lg text-left transition-colors"
+              >
+                <div className="font-medium text-white">{exercise.name}</div>
+                <div className="text-sm text-white/60">{exercise.muscleGroup}</div>
+              </button>
+            ))}
+          </div>
+
+          <div className="flex gap-3 pt-4">
+            <Button
+              onClick={() => {
+                setShowAddExerciseModal(false);
+                setExerciseSearch('');
+              }}
+              variant="secondary"
+              className="flex-1"
+            >
+              Cancel
             </Button>
           </div>
         </div>

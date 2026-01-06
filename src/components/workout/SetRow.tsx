@@ -23,41 +23,56 @@ export default function SetRow({
   onUpdate,
   onValueChange
 }: SetRowProps) {
-  // Local state for inputs
-  const [localWeight, setLocalWeight] = useState(set.weight || 0);
-  const [localReps, setLocalReps] = useState(set.reps || 0);
+  // Calculate default values (placeholders become real values)
+  const defaultWeight = typeof (sharedWeight ?? previousBest?.weight) === 'number'
+    ? (sharedWeight ?? previousBest?.weight)!
+    : 0;
+  const defaultReps = typeof (sharedReps ?? previousBest?.reps) === 'number'
+    ? (sharedReps ?? previousBest?.reps)!
+    : 0;
 
-  // Update local state when set prop changes
+  // Local state for inputs - allow empty values
+  const [localWeight, setLocalWeight] = useState<number | ''>(set.weight || '');
+  const [localReps, setLocalReps] = useState<number | ''>(set.reps || '');
+
+  // Update local state when set prop changes (only if not currently editing)
   useEffect(() => {
-    setLocalWeight(set.weight || 0);
-    setLocalReps(set.reps || 0);
+    // Don't override if user is actively editing (local state is not empty and different from db)
+    const currentWeight = typeof localWeight === 'number' ? localWeight : 0;
+    const currentReps = typeof localReps === 'number' ? localReps : 0;
+
+    if (currentWeight !== set.weight && currentWeight !== 0) return;
+    if (currentReps !== set.reps && currentReps !== 0) return;
+
+    setLocalWeight(set.weight || '');
+    setLocalReps(set.reps || '');
   }, [set.weight, set.reps]);
 
-  // Update local state when shared values change (from other sets)
-  useEffect(() => {
-    if (sharedWeight !== undefined && localWeight === 0) {
-      setLocalWeight(sharedWeight);
-    }
-    if (sharedReps !== undefined && localReps === 0) {
-      setLocalReps(sharedReps);
-    }
-  }, [sharedWeight, sharedReps, localWeight, localReps]);
+  // Handle weight input change - allow empty values
+  const handleWeightChange = (value: string) => {
+    const numValue = value === '' ? '' : Number(value);
+    setLocalWeight(numValue);
 
-  // Handle weight input change
-  const handleWeightChange = (value: number) => {
-    setLocalWeight(value);
-    onUpdate({ weight: value });
-    onValueChange?.('weight', value);
+    // Only update database if it's a valid number
+    if (typeof numValue === 'number') {
+      onUpdate({ weight: numValue });
+      onValueChange?.('weight', numValue);
+    }
   };
 
-  // Handle reps input change
-  const handleRepsChange = (value: number) => {
-    setLocalReps(value);
-    onUpdate({ reps: value });
-    onValueChange?.('reps', value);
+  // Handle reps input change - allow empty values
+  const handleRepsChange = (value: string) => {
+    const numValue = value === '' ? '' : Number(value);
+    setLocalReps(numValue);
+
+    // Only update database if it's a valid number
+    if (typeof numValue === 'number') {
+      onUpdate({ reps: numValue });
+      onValueChange?.('reps', numValue);
+    }
   };
 
-  // Calculate placeholder values
+  // Calculate display placeholder (for UI only)
   const weightPlaceholder = sharedWeight ?? previousBest?.weight ?? 'kg';
   const repsPlaceholder = sharedReps ?? previousBest?.reps ?? 'reps';
 
@@ -80,8 +95,8 @@ export default function SetRow({
       <div className="py-2 bg-transparent rounded-none">
         <input
           type="number"
-          value={localWeight || ''}
-          onChange={(e) => handleWeightChange(Number(e.target.value) || 0)}
+          value={localWeight}
+          onChange={(e) => handleWeightChange(e.target.value)}
           placeholder={typeof weightPlaceholder === 'number' ? weightPlaceholder.toString() : weightPlaceholder}
           className="
             w-full
@@ -105,8 +120,8 @@ export default function SetRow({
       <div className="px-1 py-2 bg-transparent rounded-none">
         <input
           type="number"
-          value={localReps || ''}
-          onChange={(e) => handleRepsChange(Number(e.target.value) || 0)}
+          value={localReps}
+          onChange={(e) => handleRepsChange(e.target.value)}
           placeholder={typeof repsPlaceholder === 'number' ? repsPlaceholder.toString() : repsPlaceholder}
           className="
             w-full
@@ -133,16 +148,17 @@ export default function SetRow({
             const isCompleting = !set.completed;
             const updates: Partial<Set> = { completed: isCompleting };
 
-            // If marking as completed and no values entered, use placeholder values
-            if (isCompleting && (!localWeight || !localReps)) {
-              if (!localWeight && typeof weightPlaceholder === 'number') {
-                updates.weight = weightPlaceholder;
-                setLocalWeight(weightPlaceholder);
-              }
-              if (!localReps && typeof repsPlaceholder === 'number') {
-                updates.reps = repsPlaceholder;
-                setLocalReps(repsPlaceholder);
-              }
+            // BULLETPROOF: When completing a set, ensure it has valid weight/reps values
+            if (isCompleting) {
+              const finalWeight = (typeof localWeight === 'number' && localWeight > 0) ? localWeight : defaultWeight;
+              const finalReps = (typeof localReps === 'number' && localReps > 0) ? localReps : defaultReps;
+
+              updates.weight = finalWeight;
+              updates.reps = finalReps;
+
+              // Update local state to match final values
+              setLocalWeight(finalWeight);
+              setLocalReps(finalReps);
             }
 
             onUpdate(updates);

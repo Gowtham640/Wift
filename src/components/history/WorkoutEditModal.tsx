@@ -5,6 +5,7 @@ import Modal from '@/components/ui/Modal';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
 import type { Workout } from '@/lib/db';
+import { formatDuration } from '@/lib/utils';
 
 interface WorkoutEditModalProps {
   workout: Workout | null;
@@ -21,6 +22,7 @@ export default function WorkoutEditModal({
 }: WorkoutEditModalProps) {
   const [formData, setFormData] = useState({
     date: '',
+    duration: '',
     notes: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -28,12 +30,32 @@ export default function WorkoutEditModal({
   // Update form data when workout changes
   useEffect(() => {
     if (workout) {
+      const currentDuration = workout.endTime && workout.startTime
+        ? Math.floor((workout.endTime - workout.startTime) / 1000 / 60) + 'm'
+        : '45m';
+
       setFormData({
         date: workout.date,
+        duration: currentDuration,
         notes: workout.notes || ''
       });
     }
   }, [workout]);
+
+  const parseDurationString = (durationStr: string): number => {
+    // Simple parser for formats like "45m", "1h 30m", "90"
+    const hours = durationStr.match(/(\d+)h/);
+    const minutes = durationStr.match(/(\d+)m/);
+    const plainMinutes = durationStr.match(/^(\d+)$/);
+
+    let totalMs = 0;
+
+    if (hours) totalMs += parseInt(hours[1]) * 60 * 60 * 1000;
+    if (minutes) totalMs += parseInt(minutes[1]) * 60 * 1000;
+    if (plainMinutes && !hours && !minutes) totalMs += parseInt(plainMinutes[1]) * 60 * 1000;
+
+    return totalMs;
+  };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -41,10 +63,18 @@ export default function WorkoutEditModal({
 
     setIsSubmitting(true);
     try {
-      await onSave(workout.id!, {
+      const updates: Partial<Workout> = {
         date: formData.date,
         notes: formData.notes || undefined
-      });
+      };
+
+      // Add duration update if duration changed
+      if (formData.duration) {
+        const durationMs = parseDurationString(formData.duration);
+        updates.endTime = workout.startTime + durationMs;
+      }
+
+      await onSave(workout.id!, updates);
       onClose();
     } finally {
       setIsSubmitting(false);
@@ -52,7 +82,7 @@ export default function WorkoutEditModal({
   };
 
   const handleClose = () => {
-    setFormData({ date: '', notes: '' });
+    setFormData({ date: '', duration: '', notes: '' });
     onClose();
   };
 
@@ -73,6 +103,19 @@ export default function WorkoutEditModal({
             type="date"
             value={formData.date}
             onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+            required
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-white/80 mb-2">
+            Duration (e.g., 45m, 1h 30m)
+          </label>
+          <Input
+            type="text"
+            value={formData.duration}
+            onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
+            placeholder="45m"
             required
           />
         </div>

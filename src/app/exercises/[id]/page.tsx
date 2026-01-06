@@ -215,9 +215,20 @@ export default function ExerciseDetailPage() {
     ? Math.max(...history.flatMap(h => h.sets.map(s => s.weight * s.reps)))
     : 0;
 
+  // New metrics
+  const heaviestWeight = maxWeight;
+  const oneRepMax = history && history.length > 0
+    ? Math.max(...history.flatMap(h => h.sets.map(s => s.weight)))
+    : 0;
+  const totalReps = history?.reduce((sum, h) => sum + h.sets.reduce((setSum, s) => setSum + s.reps, 0), 0) || 0;
+
   // Prepare chart data
+  // Create labels for x-axis (just numbers, dates will be in tooltips)
+  const chartLabels = history?.map((_, index) => (index + 1).toString()).reverse() || [];
+  const reversedHistory = history?.slice().reverse();
+
   const volumeChartData = {
-    labels: history?.map(h => formatDate(h.date)).reverse() || [],
+    labels: chartLabels,
     datasets: [
       {
         label: 'Volume (kg)',
@@ -237,7 +248,7 @@ export default function ExerciseDetailPage() {
   };
 
   const weightChartData = {
-    labels: history?.map(h => formatDate(h.date)).reverse() || [],
+    labels: chartLabels,
     datasets: [
       {
         label: 'Max Weight (kg)',
@@ -256,20 +267,43 @@ export default function ExerciseDetailPage() {
     ]
   };
 
-  const setsChartData = {
-    labels: history?.map(h => formatDate(h.date)).reverse() || [],
+  const heaviestWeightChartData = {
+    labels: chartLabels,
     datasets: [
       {
-        label: 'Sets per Workout',
-        data: history?.map(h => h.sets.length).reverse() || [],
-        backgroundColor: 'rgba(168, 85, 247, 0.8)',
-        borderColor: 'rgba(168, 85, 247, 1)',
+        label: 'Heaviest Weight (kg)',
+        data: history?.map(h => h.maxWeight).reverse() || [],
+        borderColor: 'rgba(245, 101, 101, 1)',
+        backgroundColor: 'rgba(245, 101, 101, 0.1)',
+        borderWidth: 3,
+        fill: true,
+        tension: 0.4,
+        pointBackgroundColor: 'rgba(245, 101, 101, 1)',
+        pointBorderColor: 'rgba(255, 255, 255, 0.8)',
+        pointBorderWidth: 2,
+        pointRadius: 4,
+        pointHoverRadius: 6
+      }
+    ]
+  };
+
+  const totalRepsData = history?.map(h => h.sets.reduce((sum, set) => sum + set.reps, 0)).reverse() || [];
+
+  const totalRepsChartData = {
+    labels: chartLabels,
+    datasets: [
+      {
+        label: 'Total Reps',
+        data: totalRepsData,
+        backgroundColor: 'rgba(139, 92, 246, 0.8)',
+        borderColor: 'rgba(139, 92, 246, 1)',
         borderWidth: 2,
         borderRadius: 4,
         borderSkipped: false
       }
     ]
   };
+
 
   const chartOptions = {
     responsive: true,
@@ -284,7 +318,20 @@ export default function ExerciseDetailPage() {
         bodyColor: 'rgba(255, 255, 255, 0.8)',
         borderColor: 'rgba(255, 255, 255, 0.1)',
         borderWidth: 1,
-        padding: 12
+        padding: 12,
+        callbacks: {
+          title: function(context: any) {
+            // Show the date in the tooltip title
+            const dataIndex = context[0].dataIndex;
+            if (reversedHistory && reversedHistory[dataIndex]) {
+              return formatDate(reversedHistory[dataIndex].date);
+            }
+            return '';
+          },
+          label: function(context: any) {
+            return context.dataset.label + ': ' + context.parsed.y;
+          }
+        }
       }
     },
     scales: {
@@ -338,7 +385,7 @@ export default function ExerciseDetailPage() {
         </div>
       </GlassWidget>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-6">
         <GlassWidget className="p-4 md:p-6" showGlow glowColor="#3b82f6">
           <div className="flex items-center gap-2 md:gap-3 mb-2">
             <Calendar size={18} className="text-white" />
@@ -358,30 +405,38 @@ export default function ExerciseDetailPage() {
         <GlassWidget className="p-4 md:p-6" showGlow glowColor="#f59e0b">
           <div className="flex items-center gap-2 md:gap-3 mb-2">
             <Award size={18} className="text-amber-400" />
-            <h3 className="text-xs md:text-sm font-medium text-white/60">Max Weight</h3>
+            <h3 className="text-xs md:text-sm font-medium text-white/60">Heaviest Weight</h3>
           </div>
-          <p className="text-xl md:text-2xl font-bold text-white">{maxWeight} kg</p>
+          <p className="text-xl md:text-2xl font-bold text-white">{heaviestWeight} kg</p>
         </GlassWidget>
 
         <GlassWidget className="p-4 md:p-6" showGlow glowColor="#a855f7">
           <div className="flex items-center gap-2 md:gap-3 mb-2">
             <TrendingUp size={18} className="text-purple-400" />
-            <h3 className="text-xs md:text-sm font-medium text-white/60">Avg Volume</h3>
+            <h3 className="text-xs md:text-sm font-medium text-white/60">One Rep Max</h3>
           </div>
-          <p className="text-xl md:text-2xl font-bold text-white">{avgVolume.toFixed(0)} kg</p>
+          <p className="text-xl md:text-2xl font-bold text-white">{oneRepMax} kg</p>
         </GlassWidget>
 
         <GlassWidget className="p-4 md:p-6" showGlow glowColor="#ef4444">
           <div className="flex items-center gap-2 md:gap-3 mb-2">
-            <Award size={18} className="text-red-400" />
-            <h3 className="text-xs md:text-sm font-medium text-white/60">Best Set</h3>
+            <Activity size={18} className="text-red-400" />
+            <h3 className="text-xs md:text-sm font-medium text-white/60">Total Reps</h3>
           </div>
-          <p className="text-xl md:text-2xl font-bold text-white">{bestSet} kg</p>
+          <p className="text-xl md:text-2xl font-bold text-white">{totalReps}</p>
+        </GlassWidget>
+
+        <GlassWidget className="p-4 md:p-6" showGlow glowColor="#06b6d4">
+          <div className="flex items-center gap-2 md:gap-3 mb-2">
+            <Award size={18} className="text-cyan-400" />
+            <h3 className="text-xs md:text-sm font-medium text-white/60">Avg Volume</h3>
+          </div>
+          <p className="text-xl md:text-2xl font-bold text-white">{avgVolume.toFixed(0)} kg</p>
         </GlassWidget>
       </div>
 
       {/* Analytics Charts */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 md:gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
         <GlassWidget widgetId={`exercise-${exerciseId}-volume`} showGlow allowColorChange className="p-4 md:p-6">
           <h2 className="text-lg md:text-xl font-bold text-white mb-4 md:mb-6">Volume Progress</h2>
           <div className="h-[300px]">
@@ -413,23 +468,40 @@ export default function ExerciseDetailPage() {
             )}
           </div>
         </GlassWidget>
+
+        <GlassWidget widgetId={`exercise-${exerciseId}-heaviest`} showGlow allowColorChange className="p-4 md:p-6">
+          <h2 className="text-lg md:text-xl font-bold text-white mb-4 md:mb-6">Heaviest Weight Progress</h2>
+          <div className="h-[300px]">
+            {history && history.length > 0 ? (
+              <Line data={heaviestWeightChartData} options={chartOptions} />
+            ) : (
+              <div className="h-full flex items-center justify-center">
+                <div className="text-center">
+                  <Award size={48} className="text-white/20 mx-auto mb-4" />
+                  <p className="text-white/40">No heaviest weight data available</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </GlassWidget>
+
+        <GlassWidget widgetId={`exercise-${exerciseId}-reps`} showGlow allowColorChange className="p-4 md:p-6">
+          <h2 className="text-lg md:text-xl font-bold text-white mb-4 md:mb-6">Total Reps Progress</h2>
+          <div className="h-[300px]">
+            {history && history.length > 0 ? (
+              <Bar data={totalRepsChartData} options={chartOptions} />
+            ) : (
+              <div className="h-full flex items-center justify-center">
+                <div className="text-center">
+                  <Activity size={48} className="text-white/20 mx-auto mb-4" />
+                  <p className="text-white/40">No reps data available</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </GlassWidget>
       </div>
 
-      <GlassWidget widgetId={`exercise-${exerciseId}-sets`} showGlow allowColorChange className="p-4 md:p-6">
-        <h2 className="text-lg md:text-xl font-bold text-white mb-4 md:mb-6">Sets per Workout</h2>
-        <div className="h-[300px]">
-          {history && history.length > 0 ? (
-            <Bar data={setsChartData} options={chartOptions} />
-          ) : (
-            <div className="h-full flex items-center justify-center">
-              <div className="text-center">
-                <Activity size={48} className="text-white/20 mx-auto mb-4" />
-                <p className="text-white/40">No sets data available</p>
-              </div>
-            </div>
-          )}
-        </div>
-      </GlassWidget>
 
       <GlassWidget className="p-6">
         <h2 className="text-xl font-bold text-white mb-4">Workout History</h2>

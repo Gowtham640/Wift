@@ -14,6 +14,7 @@ import PersonalRecords from '@/components/analytics/PersonalRecords';
 import WorkoutCalendar from '@/components/analytics/WorkoutCalendar';
 import MuscleGroupsBySets from '@/components/analytics/MuscleGroupsBySets';
 import TopExercises from '@/components/analytics/TopExercises';
+import SubMuscleAnalytics from '@/components/analytics/SubMuscleAnalytics';
 import TimeFilter, { TimePeriod } from '@/components/analytics/TimeFilter';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 
@@ -104,6 +105,9 @@ export default function AnalyticsPage() {
         <MuscleGroupsBySets timePeriod={globalTimePeriod} />
         <TopExercises timePeriod={globalTimePeriod} />
       </div>
+
+      {/* Fourth Row - Sub-Muscle Analytics */}
+      <SubMuscleAnalytics timePeriod={globalTimePeriod} />
 
       <GlassWidget className="p-6">
         <div

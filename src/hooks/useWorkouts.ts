@@ -144,6 +144,8 @@ export function useWorkouts() {
 
   const updateWorkout = async (id: number, updates: Partial<Workout>) => {
     await db.workouts.update(id, updates);
+    // Force reactivity for live queries
+    await db.workouts.count();
   };
 
   const deleteWorkout = async (id: number) => {
@@ -271,17 +273,33 @@ export function useWorkout(id: number | null) {
     return result;
   }, [id]);
 
-  const addExerciseToWorkout = async (workoutId: number, exerciseId: number) => {
+  const addExerciseToWorkout = async (workoutId: number, exerciseId: number, defaultSets: number = 3) => {
     const existingCount = await db.workout_exercises
       .where('workoutId')
       .equals(workoutId)
       .count();
 
-    await db.workout_exercises.add({
+    const workoutExerciseId = await db.workout_exercises.add({
       workoutId,
       exerciseId,
       order: existingCount
     });
+
+    // Create default sets for the new exercise
+    console.log(`🏗️ ADDING EXERCISE: Creating ${defaultSets} sets for workout exercise ${workoutExerciseId}`);
+
+    await Promise.all(
+      Array.from({ length: defaultSets }, () =>
+        db.sets.add({
+          workoutExerciseId: Number(workoutExerciseId),
+          weight: 0,
+          reps: 0,
+          completed: false
+        })
+      )
+    );
+
+    console.log(`✅ ADDING EXERCISE: Created ${defaultSets} sets for workout exercise ${workoutExerciseId}`);
   };
 
   const completeWorkout = async (workoutId: number) => {

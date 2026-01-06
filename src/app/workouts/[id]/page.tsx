@@ -30,7 +30,7 @@ export default function WorkoutPage() {
   // Note: We don't need refreshRoutine here since the workout page doesn't display routine data
   const [currentWorkoutId, setCurrentWorkoutId] = useState<number | null>(workoutId);
   const { workout, loading, completeWorkout, addExerciseToWorkout } = useWorkout(currentWorkoutId);
-  const { addExerciseToRoutine } = useRoutine(workout?.workout.routineId || null);
+  const { addExerciseToRoutine, refreshRoutine } = useRoutine(workout?.workout.routineId || null);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [showUpdateRoutineModal, setShowUpdateRoutineModal] = useState(false);
   const [showDateSelectionModal, setShowDateSelectionModal] = useState(false);
@@ -40,8 +40,14 @@ export default function WorkoutPage() {
   const [editWorkoutDate, setEditWorkoutDate] = useState('');
   const [editWorkoutDuration, setEditWorkoutDuration] = useState('');
   const [exerciseSearch, setExerciseSearch] = useState('');
+  const [exerciseMuscleFilter, setExerciseMuscleFilter] = useState('');
+  const [exerciseEquipmentFilter, setExerciseEquipmentFilter] = useState('');
   const [selectedDate, setSelectedDate] = useState(getTodayString());
-  const { exercises: allExercises } = useExercises({ search: exerciseSearch });
+  const { exercises: allExercises } = useExercises({
+    search: exerciseSearch,
+    muscleGroup: exerciseMuscleFilter,
+    equipment: exerciseEquipmentFilter
+  });
 
   useEffect(() => {
     if (workoutId === null) {
@@ -275,6 +281,7 @@ export default function WorkoutPage() {
 
     try {
       await addExerciseToRoutine(workout.workout.routineId, exerciseId, 3, 8); // Default 3 sets, 8 reps
+      refreshRoutine(); // Refresh the routine data in UI
       showToast('Exercise added to routine!', 'success');
       setShowAddExerciseModal(false);
     } catch (error) {
@@ -629,6 +636,8 @@ export default function WorkoutPage() {
         onClose={() => {
           setShowAddExerciseToWorkoutModal(false);
           setExerciseSearch('');
+          setExerciseMuscleFilter('');
+          setExerciseEquipmentFilter('');
         }}
         title="Add Exercise to Workout"
       >
@@ -644,6 +653,37 @@ export default function WorkoutPage() {
             placeholder="Search exercises..."
             className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
+
+          <div className="grid grid-cols-2 gap-3">
+            <select
+              value={exerciseMuscleFilter}
+              onChange={(e) => setExerciseMuscleFilter(e.target.value)}
+              className="px-4 py-3 bg-gray-800 border border-gray-600 rounded-lg text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent hover:bg-gray-700"
+            >
+              <option value="" className="bg-gray-800 text-gray-100">All Muscle Groups</option>
+              <option value="Chest" className="bg-gray-800 text-gray-100">Chest</option>
+              <option value="Back" className="bg-gray-800 text-gray-100">Back</option>
+              <option value="Shoulders" className="bg-gray-800 text-gray-100">Shoulders</option>
+              <option value="Arms" className="bg-gray-800 text-gray-100">Arms</option>
+              <option value="Legs" className="bg-gray-800 text-gray-100">Legs</option>
+              <option value="Core" className="bg-gray-800 text-gray-100">Core</option>
+              <option value="Full Body" className="bg-gray-800 text-gray-100">Full Body</option>
+            </select>
+
+            <select
+              value={exerciseEquipmentFilter}
+              onChange={(e) => setExerciseEquipmentFilter(e.target.value)}
+              className="px-4 py-3 bg-gray-800 border border-gray-600 rounded-lg text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent hover:bg-gray-700"
+            >
+              <option value="" className="bg-gray-800 text-gray-100">All Equipment</option>
+              <option value="Barbell" className="bg-gray-800 text-gray-100">Barbell</option>
+              <option value="Dumbbell" className="bg-gray-800 text-gray-100">Dumbbell</option>
+              <option value="Machine" className="bg-gray-800 text-gray-100">Machine</option>
+              <option value="Cable" className="bg-gray-800 text-gray-100">Cable</option>
+              <option value="Bodyweight" className="bg-gray-800 text-gray-100">Bodyweight</option>
+              <option value="Resistance Band" className="bg-gray-800 text-gray-100">Resistance Band</option>
+            </select>
+          </div>
 
           <div className="max-h-96 overflow-y-auto space-y-2">
             {allExercises?.map((exercise) => (
@@ -663,6 +703,8 @@ export default function WorkoutPage() {
               onClick={() => {
                 setShowAddExerciseToWorkoutModal(false);
                 setExerciseSearch('');
+                setExerciseMuscleFilter('');
+                setExerciseEquipmentFilter('');
               }}
               variant="secondary"
               className="flex-1"
@@ -679,6 +721,8 @@ export default function WorkoutPage() {
         onClose={() => {
           setShowAddExerciseModal(false);
           setExerciseSearch('');
+          setExerciseMuscleFilter('');
+          setExerciseEquipmentFilter('');
         }}
         title="Add Exercise to Routine"
       >
@@ -694,6 +738,37 @@ export default function WorkoutPage() {
             placeholder="Search exercises..."
             className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
+
+          <div className="grid grid-cols-2 gap-3">
+            <select
+              value={exerciseMuscleFilter}
+              onChange={(e) => setExerciseMuscleFilter(e.target.value)}
+              className="px-4 py-3 bg-gray-800 border border-gray-600 rounded-lg text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent hover:bg-gray-700"
+            >
+              <option value="" className="bg-gray-800 text-gray-100">All Muscle Groups</option>
+              <option value="Chest" className="bg-gray-800 text-gray-100">Chest</option>
+              <option value="Back" className="bg-gray-800 text-gray-100">Back</option>
+              <option value="Shoulders" className="bg-gray-800 text-gray-100">Shoulders</option>
+              <option value="Arms" className="bg-gray-800 text-gray-100">Arms</option>
+              <option value="Legs" className="bg-gray-800 text-gray-100">Legs</option>
+              <option value="Core" className="bg-gray-800 text-gray-100">Core</option>
+              <option value="Full Body" className="bg-gray-800 text-gray-100">Full Body</option>
+            </select>
+
+            <select
+              value={exerciseEquipmentFilter}
+              onChange={(e) => setExerciseEquipmentFilter(e.target.value)}
+              className="px-4 py-3 bg-gray-800 border border-gray-600 rounded-lg text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent hover:bg-gray-700"
+            >
+              <option value="" className="bg-gray-800 text-gray-100">All Equipment</option>
+              <option value="Barbell" className="bg-gray-800 text-gray-100">Barbell</option>
+              <option value="Dumbbell" className="bg-gray-800 text-gray-100">Dumbbell</option>
+              <option value="Machine" className="bg-gray-800 text-gray-100">Machine</option>
+              <option value="Cable" className="bg-gray-800 text-gray-100">Cable</option>
+              <option value="Bodyweight" className="bg-gray-800 text-gray-100">Bodyweight</option>
+              <option value="Resistance Band" className="bg-gray-800 text-gray-100">Resistance Band</option>
+            </select>
+          </div>
 
           <div className="max-h-96 overflow-y-auto space-y-2">
             {allExercises?.map((exercise) => (
@@ -713,6 +788,8 @@ export default function WorkoutPage() {
               onClick={() => {
                 setShowAddExerciseModal(false);
                 setExerciseSearch('');
+                setExerciseMuscleFilter('');
+                setExerciseEquipmentFilter('');
               }}
               variant="secondary"
               className="flex-1"

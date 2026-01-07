@@ -16,9 +16,9 @@ export default function WorkoutCalendar() {
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
 
-  // Track completed workouts to force re-renders when workouts are completed
+  // Track workouts to force re-renders when workouts are added/completed/deleted
   const deletionTracker = useLiveQuery(async () => {
-    return await db.workouts.where('endTime').above(0).count(); // Changes when workouts are completed/incompleted
+    return await db.workouts.count(); // Changes when workouts are added/deleted
   });
 
   // Get workout dates for the current month and calculate streaks
@@ -30,28 +30,28 @@ export default function WorkoutCalendar() {
     const ninetyDaysAgo = new Date();
     ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
 
-    const allWorkouts = await db.workouts
-      .where('date')
-      .between(
-        `${ninetyDaysAgo.getFullYear()}-${String(ninetyDaysAgo.getMonth() + 1).padStart(2, '0')}-${String(ninetyDaysAgo.getDate()).padStart(2, '0')}`,
-        getTodayString()
-      )
-      .and(workout => workout.endTime !== undefined)
-      .sortBy('date');
+    // Get all workouts first, then filter appropriately
+    const allWorkoutsInDb = await db.workouts.toArray();
 
-    // Get workouts for current month
-    const monthWorkouts = await db.workouts
-      .where('date')
-      .between(
-        `${startOfMonth.getFullYear()}-${String(startOfMonth.getMonth() + 1).padStart(2, '0')}-${String(startOfMonth.getDate()).padStart(2, '0')}`,
-        `${endOfMonth.getFullYear()}-${String(endOfMonth.getMonth() + 1).padStart(2, '0')}-${String(endOfMonth.getDate()).padStart(2, '0')}`
+    // Filter for streak calculation (last 90 days, completed)
+    const allWorkouts = allWorkoutsInDb
+      .filter(workout =>
+        workout.endTime !== undefined &&
+        workout.date >= `${ninetyDaysAgo.getFullYear()}-${String(ninetyDaysAgo.getMonth() + 1).padStart(2, '0')}-${String(ninetyDaysAgo.getDate()).padStart(2, '0')}` &&
+        workout.date <= getTodayString()
       )
-      .and(workout => workout.endTime !== undefined)
-      .toArray();
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    // Filter for current month workouts
+    const monthWorkouts = allWorkoutsInDb.filter(workout =>
+      workout.endTime !== undefined &&
+      workout.date >= `${startOfMonth.getFullYear()}-${String(startOfMonth.getMonth() + 1).padStart(2, '0')}-${String(startOfMonth.getDate()).padStart(2, '0')}` &&
+      workout.date <= `${endOfMonth.getFullYear()}-${String(endOfMonth.getMonth() + 1).padStart(2, '0')}-${String(endOfMonth.getDate()).padStart(2, '0')}`
+    );
 
     const workoutDateSet = new Set(monthWorkouts.map(w => w.date));
 
-    // Calculate current streak
+    // Calculate streaks (moved to separate component)
     let currentStreak = 0;
     const today = getTodayString();
     let checkDate = new Date();

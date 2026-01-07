@@ -47,51 +47,140 @@ export default function ExerciseDetailPage() {
   const [selectedTimePeriod, setSelectedTimePeriod] = useState<TimePeriod>('month');
 
   const history = useLiveQuery(async () => {
-    if (!exercise) return [];
+    console.log('🏋️ ExerciseDetail: useLiveQuery triggered - exerciseId:', exerciseId, 'timePeriod:', selectedTimePeriod);
+
+    if (!exercise) {
+      console.log('🏋️ ExerciseDetail: No exercise loaded yet');
+      return [];
+    }
+
+    console.log('🏋️ ExerciseDetail: Loading analytics for exercise:', exercise.name, '(ID:', exerciseId, ')');
 
     const { startDate, endDate } = getDateRangeForPeriod(selectedTimePeriod);
+    const startDateStr = getLocalDateString(startDate);
+    const endDateStr = getLocalDateString(endDate);
 
-    // Get workouts within the selected time period
-    const workoutsInPeriod = await db.workouts
-      .where('date')
-      .between(getLocalDateString(startDate), getLocalDateString(endDate))
-      .toArray();
+    console.log('📅 ExerciseDetail: Date range:', startDateStr, 'to', endDateStr);
+
+    // Get ALL workouts first, then filter manually (same fix as weight chart)
+    const allWorkouts = await db.workouts.toArray();
+    console.log('🏋️ ExerciseDetail: Total workouts in DB:', allWorkouts.length);
+
+    const workoutsInPeriod = allWorkouts.filter(workout =>
+      workout.endTime !== undefined &&
+      workout.date >= startDateStr &&
+      workout.date <= endDateStr
+    );
+
+    console.log('🏋️ ExerciseDetail: Workouts in time period:', workoutsInPeriod.length);
 
     const workoutIds = workoutsInPeriod.map(w => w.id!);
+    console.log('🏋️ ExerciseDetail: Workout IDs to check:', workoutIds);
 
     // Get workout exercises for this exercise within the time period
-    const workoutExercises = await db.workout_exercises
-      .where('workoutId')
-      .anyOf(workoutIds)
-      .and(we => we.exerciseId === exerciseId)
-      .toArray();
+    const allWorkoutExercises = await db.workout_exercises.toArray();
+    console.log('🏋️ ExerciseDetail: Total workout exercises in DB:', allWorkoutExercises.length);
+
+    const workoutExercises = allWorkoutExercises.filter(we =>
+      workoutIds.includes(we.workoutId) && we.exerciseId === exerciseId
+    );
+
+    console.log('🏋️ ExerciseDetail: Workout exercises for this exercise:', workoutExercises.length);
 
     // Get history data
+    console.log('🏋️ ExerciseDetail: Processing', workoutExercises.length, 'workout exercises');
+
     const historyData: ExerciseHistory[] = await Promise.all(
-      workoutExercises.map(async (we) => {
+      workoutExercises.map(async (we, index) => {
+        console.log('🏋️ ExerciseDetail: Processing workout exercise', index + 1, '/', workoutExercises.length, '- ID:', we.id);
+
         const workout = workoutsInPeriod.find(w => w.id === we.workoutId);
+        console.log('🏋️ ExerciseDetail: Found workout:', workout ? workout.date : 'NOT FOUND');
+
         const sets = await db.sets
           .where('workoutExerciseId')
           .equals(we.id!)
           .and(s => s.completed)
           .toArray();
 
+        console.log('🏋️ ExerciseDetail: Found', sets.length, 'completed sets for workout exercise', we.id);
+
         const totalVolume = sets.reduce((sum, s) => sum + s.weight * s.reps, 0);
         const maxWeight = sets.length > 0 ? Math.max(...sets.map(s => s.weight)) : 0;
 
-        return {
+        const historyEntry = {
           date: workout?.date || '',
           sets,
           totalVolume,
           maxWeight
         };
+
+        console.log('🏋️ ExerciseDetail: Created history entry:', {
+          date: historyEntry.date,
+          setsCount: historyEntry.sets.length,
+          totalVolume: historyEntry.totalVolume,
+          maxWeight: historyEntry.maxWeight
+        });
+
+        return historyEntry;
       })
     );
 
-    return historyData
-      .filter(h => h.sets.length > 0)
-      .sort((a, b) => b.date.localeCompare(a.date));
+    const filteredHistory = historyData.filter(h => h.sets.length > 0);
+    console.log('🏋️ ExerciseDetail: After filtering empty sets:', filteredHistory.length, 'entries');
+
+    const sortedHistory = filteredHistory.sort((a, b) => b.date.localeCompare(a.date));
+    console.log('🏋️ ExerciseDetail: Final sorted history:', sortedHistory.length, 'entries');
+
+    return sortedHistory;
   }, [exerciseId, exercise, selectedTimePeriod]);
+
+  // Debug function for exercise analytics
+  if (typeof window !== 'undefined') {
+    (window as any).debugExercise = async () => {
+      console.log('🏋️ EXERCISE DEBUG: Analyzing exercise analytics for ID:', exerciseId);
+
+      if (!exercise) {
+        console.log('🏋️ EXERCISE DEBUG: No exercise loaded');
+        return;
+      }
+
+      console.log('🏋️ EXERCISE DEBUG: Exercise:', exercise.name, '(ID:', exerciseId, ')');
+
+      // Check all workouts
+      const allWorkouts = await db.workouts.toArray();
+      console.log('🏋️ EXERCISE DEBUG: Total workouts:', allWorkouts.length);
+
+      const completedWorkouts = allWorkouts.filter(w => w.endTime);
+      console.log('🏋️ EXERCISE DEBUG: Completed workouts:', completedWorkouts.length);
+
+      // Check workout exercises for this exercise
+      const allWorkoutExercises = await db.workout_exercises.toArray();
+      const exerciseWorkoutExercises = allWorkoutExercises.filter(we => we.exerciseId === exerciseId);
+      console.log('🏋️ EXERCISE DEBUG: Workout exercises for this exercise:', exerciseWorkoutExercises.length);
+
+      // Check sets for this exercise
+      let totalSets = 0;
+      let completedSets = 0;
+
+      for (const we of exerciseWorkoutExercises) {
+        const sets = await db.sets.where('workoutExerciseId').equals(we.id!).toArray();
+        totalSets += sets.length;
+        completedSets += sets.filter(s => s.completed).length;
+      }
+
+      console.log('🏋️ EXERCISE DEBUG: Total sets:', totalSets, 'Completed sets:', completedSets);
+
+      // Check current history data
+      console.log('🏋️ EXERCISE DEBUG: Current history data:', history);
+
+      if (history && history.length > 0) {
+        console.log('🏋️ EXERCISE DEBUG: Sample history entry:', history[0]);
+      } else {
+        console.log('🏋️ EXERCISE DEBUG: No history data found!');
+      }
+    };
+  }
 
   if (loading) {
     return (
@@ -126,9 +215,20 @@ export default function ExerciseDetailPage() {
     ? Math.max(...history.flatMap(h => h.sets.map(s => s.weight * s.reps)))
     : 0;
 
+  // New metrics
+  const heaviestWeight = maxWeight;
+  const oneRepMax = history && history.length > 0
+    ? Math.max(...history.flatMap(h => h.sets.map(s => s.weight)))
+    : 0;
+  const totalReps = history?.reduce((sum, h) => sum + h.sets.reduce((setSum, s) => setSum + s.reps, 0), 0) || 0;
+
   // Prepare chart data
+  // Create labels for x-axis (just numbers, dates will be in tooltips)
+  const chartLabels = history?.map((_, index) => (index + 1).toString()).reverse() || [];
+  const reversedHistory = history?.slice().reverse();
+
   const volumeChartData = {
-    labels: history?.map(h => formatDate(h.date)).reverse() || [],
+    labels: chartLabels,
     datasets: [
       {
         label: 'Volume (kg)',
@@ -148,7 +248,7 @@ export default function ExerciseDetailPage() {
   };
 
   const weightChartData = {
-    labels: history?.map(h => formatDate(h.date)).reverse() || [],
+    labels: chartLabels,
     datasets: [
       {
         label: 'Max Weight (kg)',
@@ -167,20 +267,43 @@ export default function ExerciseDetailPage() {
     ]
   };
 
-  const setsChartData = {
-    labels: history?.map(h => formatDate(h.date)).reverse() || [],
+  const heaviestWeightChartData = {
+    labels: chartLabels,
     datasets: [
       {
-        label: 'Sets per Workout',
-        data: history?.map(h => h.sets.length).reverse() || [],
-        backgroundColor: 'rgba(168, 85, 247, 0.8)',
-        borderColor: 'rgba(168, 85, 247, 1)',
+        label: 'Heaviest Weight (kg)',
+        data: history?.map(h => h.maxWeight).reverse() || [],
+        borderColor: 'rgba(245, 101, 101, 1)',
+        backgroundColor: 'rgba(245, 101, 101, 0.1)',
+        borderWidth: 3,
+        fill: true,
+        tension: 0.4,
+        pointBackgroundColor: 'rgba(245, 101, 101, 1)',
+        pointBorderColor: 'rgba(255, 255, 255, 0.8)',
+        pointBorderWidth: 2,
+        pointRadius: 4,
+        pointHoverRadius: 6
+      }
+    ]
+  };
+
+  const totalRepsData = history?.map(h => h.sets.reduce((sum, set) => sum + set.reps, 0)).reverse() || [];
+
+  const totalRepsChartData = {
+    labels: chartLabels,
+    datasets: [
+      {
+        label: 'Total Reps',
+        data: totalRepsData,
+        backgroundColor: 'rgba(139, 92, 246, 0.8)',
+        borderColor: 'rgba(139, 92, 246, 1)',
         borderWidth: 2,
         borderRadius: 4,
         borderSkipped: false
       }
     ]
   };
+
 
   const chartOptions = {
     responsive: true,
@@ -195,7 +318,20 @@ export default function ExerciseDetailPage() {
         bodyColor: 'rgba(255, 255, 255, 0.8)',
         borderColor: 'rgba(255, 255, 255, 0.1)',
         borderWidth: 1,
-        padding: 12
+        padding: 12,
+        callbacks: {
+          title: function(context: any) {
+            // Show the date in the tooltip title
+            const dataIndex = context[0].dataIndex;
+            if (reversedHistory && reversedHistory[dataIndex]) {
+              return formatDate(reversedHistory[dataIndex].date);
+            }
+            return '';
+          },
+          label: function(context: any) {
+            return context.dataset.label + ': ' + context.parsed.y;
+          }
+        }
       }
     },
     scales: {
@@ -249,7 +385,7 @@ export default function ExerciseDetailPage() {
         </div>
       </GlassWidget>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-6">
         <GlassWidget className="p-4 md:p-6" showGlow glowColor="#3b82f6">
           <div className="flex items-center gap-2 md:gap-3 mb-2">
             <Calendar size={18} className="text-white" />
@@ -269,30 +405,38 @@ export default function ExerciseDetailPage() {
         <GlassWidget className="p-4 md:p-6" showGlow glowColor="#f59e0b">
           <div className="flex items-center gap-2 md:gap-3 mb-2">
             <Award size={18} className="text-amber-400" />
-            <h3 className="text-xs md:text-sm font-medium text-white/60">Max Weight</h3>
+            <h3 className="text-xs md:text-sm font-medium text-white/60">Heaviest Weight</h3>
           </div>
-          <p className="text-xl md:text-2xl font-bold text-white">{maxWeight} kg</p>
+          <p className="text-xl md:text-2xl font-bold text-white">{heaviestWeight} kg</p>
         </GlassWidget>
 
         <GlassWidget className="p-4 md:p-6" showGlow glowColor="#a855f7">
           <div className="flex items-center gap-2 md:gap-3 mb-2">
             <TrendingUp size={18} className="text-purple-400" />
-            <h3 className="text-xs md:text-sm font-medium text-white/60">Avg Volume</h3>
+            <h3 className="text-xs md:text-sm font-medium text-white/60">One Rep Max</h3>
           </div>
-          <p className="text-xl md:text-2xl font-bold text-white">{avgVolume.toFixed(0)} kg</p>
+          <p className="text-xl md:text-2xl font-bold text-white">{oneRepMax} kg</p>
         </GlassWidget>
 
         <GlassWidget className="p-4 md:p-6" showGlow glowColor="#ef4444">
           <div className="flex items-center gap-2 md:gap-3 mb-2">
-            <Award size={18} className="text-red-400" />
-            <h3 className="text-xs md:text-sm font-medium text-white/60">Best Set</h3>
+            <Activity size={18} className="text-red-400" />
+            <h3 className="text-xs md:text-sm font-medium text-white/60">Total Reps</h3>
           </div>
-          <p className="text-xl md:text-2xl font-bold text-white">{bestSet} kg</p>
+          <p className="text-xl md:text-2xl font-bold text-white">{totalReps}</p>
+        </GlassWidget>
+
+        <GlassWidget className="p-4 md:p-6" showGlow glowColor="#06b6d4">
+          <div className="flex items-center gap-2 md:gap-3 mb-2">
+            <Award size={18} className="text-cyan-400" />
+            <h3 className="text-xs md:text-sm font-medium text-white/60">Avg Volume</h3>
+          </div>
+          <p className="text-xl md:text-2xl font-bold text-white">{avgVolume.toFixed(0)} kg</p>
         </GlassWidget>
       </div>
 
       {/* Analytics Charts */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 md:gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
         <GlassWidget widgetId={`exercise-${exerciseId}-volume`} showGlow allowColorChange className="p-4 md:p-6">
           <h2 className="text-lg md:text-xl font-bold text-white mb-4 md:mb-6">Volume Progress</h2>
           <div className="h-[300px]">
@@ -324,23 +468,40 @@ export default function ExerciseDetailPage() {
             )}
           </div>
         </GlassWidget>
+
+        <GlassWidget widgetId={`exercise-${exerciseId}-heaviest`} showGlow allowColorChange className="p-4 md:p-6">
+          <h2 className="text-lg md:text-xl font-bold text-white mb-4 md:mb-6">Heaviest Weight Progress</h2>
+          <div className="h-[300px]">
+            {history && history.length > 0 ? (
+              <Line data={heaviestWeightChartData} options={chartOptions} />
+            ) : (
+              <div className="h-full flex items-center justify-center">
+                <div className="text-center">
+                  <Award size={48} className="text-white/20 mx-auto mb-4" />
+                  <p className="text-white/40">No heaviest weight data available</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </GlassWidget>
+
+        <GlassWidget widgetId={`exercise-${exerciseId}-reps`} showGlow allowColorChange className="p-4 md:p-6">
+          <h2 className="text-lg md:text-xl font-bold text-white mb-4 md:mb-6">Total Reps Progress</h2>
+          <div className="h-[300px]">
+            {history && history.length > 0 ? (
+              <Bar data={totalRepsChartData} options={chartOptions} />
+            ) : (
+              <div className="h-full flex items-center justify-center">
+                <div className="text-center">
+                  <Activity size={48} className="text-white/20 mx-auto mb-4" />
+                  <p className="text-white/40">No reps data available</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </GlassWidget>
       </div>
 
-      <GlassWidget widgetId={`exercise-${exerciseId}-sets`} showGlow allowColorChange className="p-4 md:p-6">
-        <h2 className="text-lg md:text-xl font-bold text-white mb-4 md:mb-6">Sets per Workout</h2>
-        <div className="h-[300px]">
-          {history && history.length > 0 ? (
-            <Bar data={setsChartData} options={chartOptions} />
-          ) : (
-            <div className="h-full flex items-center justify-center">
-              <div className="text-center">
-                <Activity size={48} className="text-white/20 mx-auto mb-4" />
-                <p className="text-white/40">No sets data available</p>
-              </div>
-            </div>
-          )}
-        </div>
-      </GlassWidget>
 
       <GlassWidget className="p-6">
         <h2 className="text-xl font-bold text-white mb-4">Workout History</h2>
@@ -386,6 +547,9 @@ export default function ExerciseDetailPage() {
           </div>
         )}
       </GlassWidget>
+
+      {/* Invisible spacer to push content above BottomNav overlay */}
+      <div className="h-20 md:hidden" aria-hidden="true" />
     </div>
   );
 }

@@ -41,8 +41,8 @@ export default function RoutinesPage() {
   };
 
   return (
-    <div className="space-y-4 md:space-y-6 max-w-7xl mx-auto">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-2 md:px-0">
+    <div className="space-y-4 md:space-y-6">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <h1 className="text-2xl md:text-3xl font-bold text-white">Routines</h1>
         <div className="flex gap-2 md:gap-3 w-full sm:w-auto">
           <Button variant="secondary" onClick={handleStartFreeWorkout} className="flex-1 sm:flex-none text-sm md:text-base py-2 md:py-3">
@@ -64,7 +64,7 @@ export default function RoutinesPage() {
         className="max-w-full md:max-w-md"
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+      <div className="space-y-4">
         {routines && routines.length === 0 && (
           <div className="col-span-full text-center py-12">
             <p className="text-white/40 mb-4">
@@ -114,6 +114,9 @@ export default function RoutinesPage() {
           />
         )}
       </Modal>
+
+      {/* Invisible spacer to push content above BottomNav overlay */}
+      <div className="h-20 md:hidden" aria-hidden="true" />
     </div>
   );
 }

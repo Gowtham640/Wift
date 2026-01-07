@@ -8,11 +8,13 @@ import GlassWidget from '@/components/ui/GlassWidget';
 import SearchInput from '@/components/ui/SearchInput';
 import WorkoutFrequencyChart from '@/components/analytics/WorkoutFrequencyChart';
 import MuscleDistributionChart from '@/components/analytics/MuscleDistributionChart';
+import MuscleSetsChart from '@/components/analytics/MuscleSetsChart';
 import WeightChart from '@/components/analytics/WeightChart';
 import PersonalRecords from '@/components/analytics/PersonalRecords';
 import WorkoutCalendar from '@/components/analytics/WorkoutCalendar';
 import MuscleGroupsBySets from '@/components/analytics/MuscleGroupsBySets';
 import TopExercises from '@/components/analytics/TopExercises';
+import SubMuscleAnalytics from '@/components/analytics/SubMuscleAnalytics';
 import TimeFilter, { TimePeriod } from '@/components/analytics/TimeFilter';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 
@@ -80,13 +82,16 @@ export default function AnalyticsPage() {
         </div>
       </GlassWidget>
 
-      {/* Top Row - Overview Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
+      {/* Top Row - Key Metrics */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
         <WorkoutFrequencyChart timePeriod={globalTimePeriod} />
-
-        <MuscleDistributionChart timePeriod={globalTimePeriod} />
-
         <WeightChart timePeriod={globalTimePeriod} />
+      </div>
+
+      {/* Second Row - Muscle Analysis */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
+        <MuscleDistributionChart timePeriod={globalTimePeriod} />
+        <MuscleSetsChart timePeriod={globalTimePeriod} />
       </div>
 
       {/* Second Row - Calendar and PRs */}
@@ -100,6 +105,9 @@ export default function AnalyticsPage() {
         <MuscleGroupsBySets timePeriod={globalTimePeriod} />
         <TopExercises timePeriod={globalTimePeriod} />
       </div>
+
+      {/* Fourth Row - Sub-Muscle Analytics */}
+      <SubMuscleAnalytics timePeriod={globalTimePeriod} />
 
       <GlassWidget className="p-6">
         <div
@@ -159,6 +167,9 @@ export default function AnalyticsPage() {
           </>
         )}
       </GlassWidget>
+
+      {/* Invisible spacer to push content above BottomNav overlay */}
+      <div className="h-20 md:hidden" aria-hidden="true" />
     </div>
   );
 }

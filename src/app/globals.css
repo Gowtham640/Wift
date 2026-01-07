@@ -75,7 +75,7 @@ body {
   bottom: 0;
   left: 0;
   right: 0;
-  height: 30px;
+  height: 50px;
   background: linear-gradient(to top, var(--glow-color, #ffffff), transparent);
   opacity: 0.3;
   filter: blur(30px);
@@ -166,6 +166,16 @@ select.input option {
   color: rgba(255, 255, 255, 0.9);
 }
 
+/* Remove number input arrows */
+input[type='number']::-webkit-inner-spin-button,
+input[type='number']::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type='number'] {
+  -moz-appearance: textfield; /* Firefox */
+}
 /* Scrollbar Styles */
 ::-webkit-scrollbar {
   width: 8px;
@@ -183,4 +193,13 @@ select.input option {
 
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.3);
+}
+
+/* Widget Expansion for Color Picker */
+.glass-widget {
+  transition: padding 0.25s ease;
+}
+
+.widget-expanded {
+  padding-bottom: 260px; /* slightly larger than picker height */
 }

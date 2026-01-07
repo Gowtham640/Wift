@@ -12,11 +12,15 @@ import {
 } from 'chart.js';
 import { Line } from 'react-chartjs-2';
 import GlassWidget from '@/components/ui/GlassWidget';
-import TimeFilter, { TimePeriod, getDateRangeForPeriod } from './TimeFilter';
+import { TimePeriod, getDateRangeForPeriod } from './TimeFilter';
 import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/lib/db';
-import { getLocalDateString } from '@/lib/utils';
+import { getLocalDateString, getISTDateString, getISTTimestamp } from '@/lib/utils';
+import Input from '@/components/ui/Input';
+import Button from '@/components/ui/Button';
+import { Plus, TrendingUp, TrendingDown } from 'lucide-react';
+import { useProfile } from '@/hooks/useProfile';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend);
 
@@ -30,42 +34,118 @@ interface WeightChartProps {
 }
 
 export default function WeightChart({ timePeriod }: WeightChartProps) {
-  // Track completed workouts to force re-renders when workouts are completed
-  const deletionTracker = useLiveQuery(async () => {
-    return await db.workouts.where('endTime').above(0).count(); // Changes when workouts are completed/incompleted
-  });
+  const [newWeight, setNewWeight] = useState('');
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const { updateProfile } = useProfile();
 
-  // For now, we'll create mock weight data based on workouts
-  // In a real implementation, you'd have a weight_logs table
+  // Debug function for weight entries
+  if (typeof window !== 'undefined') {
+    (window as any).debugWeight = async () => {
+      console.log('⚖️ WEIGHT DEBUG: Checking weight entries...');
+
+      try {
+        // Check if table exists
+        console.log('🗄️ Weight table exists:', !!db.weight_entries);
+
+        // Get all weight entries
+        const allWeights = await db.weight_entries.toArray();
+        console.log('⚖️ Total weight entries:', allWeights.length);
+
+        if (allWeights.length > 0) {
+          console.log('⚖️ All weight entries:', allWeights);
+          console.log('⚖️ Latest entry:', allWeights[allWeights.length - 1]);
+        }
+
+        // Test date functions
+        console.log('📅 IST Date String:', getISTDateString());
+        console.log('⏰ IST Timestamp:', getISTTimestamp());
+
+        // Test a manual insertion
+        console.log('🧪 Testing manual weight insertion...');
+        const testEntry = {
+          weight: 75.5,
+          date: getISTDateString(),
+          createdAt: getISTTimestamp()
+        };
+        console.log('🧪 Test entry to insert:', testEntry);
+
+        const testId = await db.weight_entries.add(testEntry);
+        console.log('🧪 Test insertion result ID:', testId);
+
+        const retrieved = await db.weight_entries.get(testId);
+        console.log('🧪 Retrieved test entry:', retrieved);
+
+        // Clean up test entry
+        await db.weight_entries.delete(testId);
+        console.log('🧪 Cleaned up test entry');
+
+    } catch (error) {
+      console.error('❌ Weight debug failed:', error);
+      const errorDetails = error instanceof Error ? {
+        message: error.message,
+        stack: error.stack
+      } : { error: String(error) };
+      console.error('❌ Error details:', errorDetails);
+    }
+    };
+  }
+
+  // Get weight entries for the time period
   const weightData = useLiveQuery(async () => {
     const { startDate, endDate } = getDateRangeForPeriod(timePeriod);
-    const workouts = await db.workouts
-      .where('date')
-      .between(getLocalDateString(startDate), getLocalDateString(endDate))
-      .and(workout => workout.endTime !== undefined)
-      .sortBy('date');
 
-    // Get profile for current weight
-    const profile = await db.profiles.get(1);
+    const startDateStr = getLocalDateString(startDate);
+    const endDateStr = getLocalDateString(endDate);
 
-    // Create weight progression data based on workouts
-    // This is simplified - in reality you'd have actual weight logs
-    const mockData: WeightData[] = [];
-    let currentWeight = profile?.weightKg || 70; // Default weight
+    // Get all entries first (manual filtering instead of indexed query)
+    const allEntries = await db.weight_entries.toArray();
 
-    workouts.forEach((workout, index) => {
-      // Simulate slight weight changes over time
-      const weightChange = (Math.random() - 0.5) * 0.5; // Random change between -0.25 and +0.25 kg
-      currentWeight = Math.max(currentWeight + weightChange, 50); // Minimum 50kg
+    // Manual filtering for date range
+    const weightEntries = allEntries
+      .filter(entry => entry.date >= startDateStr && entry.date <= endDateStr)
+      .sort((a, b) => a.date.localeCompare(b.date));
 
-      mockData.push({
-        date: workout.date,
-        weight: Math.round(currentWeight * 10) / 10 // Round to 1 decimal
+    return weightEntries;
+  }, [timePeriod, refreshTrigger]);
+
+  const addWeightEntry = async () => {
+    const weight = parseFloat(newWeight);
+    if (isNaN(weight) || weight <= 0) return;
+
+    try {
+      // Add to weight_entries for analytics tracking
+      const result = await db.weight_entries.add({
+        weight: weight,
+        date: getISTDateString(),
+        createdAt: getISTTimestamp()
       });
-    });
 
-    return mockData;
-  }, [timePeriod, deletionTracker]);
+      // Also update the profile weight so dashboard shows current weight
+      await updateProfile({ weightKg: weight });
+
+      // Force refresh to ensure UI updates immediately
+      setRefreshTrigger(prev => prev + 1);
+
+      setNewWeight('');
+      setShowAddForm(false);
+
+    } catch (error) {
+      console.error('Failed to add weight entry:', error);
+    }
+  };
+
+  const currentWeight = weightData && weightData.length > 0
+    ? weightData[weightData.length - 1].weight
+    : null;
+
+  const startingWeight = weightData && weightData.length > 0
+    ? weightData[0].weight
+    : null;
+
+  const weightChange = currentWeight && startingWeight
+    ? currentWeight - startingWeight
+    : 0;
 
   const data = {
     labels: weightData?.map(d => {
@@ -159,20 +239,82 @@ export default function WeightChart({ timePeriod }: WeightChartProps) {
 
   return (
     <GlassWidget widgetId="analytics-weight-chart" showGlow allowColorChange className="p-4 md:p-6">
-      <h2 className="text-lg md:text-xl font-bold text-white mb-4">Weight Progress</h2>
-
-      <div className="h-[300px]">
-        {weightData && weightData.length > 0 ? (
-          <Line data={data} options={options} />
-        ) : (
-          <div className="h-full flex items-center justify-center">
-            <div className="text-center">
-              <p className="text-white/40 mb-2">No weight data available</p>
-              <p className="text-white/60 text-sm">Update your weight on the dashboard to see progress</p>
-            </div>
-          </div>
-        )}
+      <div className="flex items-center justify-between mb-4 md:mb-6">
+        <h2 className="text-lg md:text-xl font-bold text-white">Weight Progress</h2>
+        <Button
+          onClick={() => setShowAddForm(!showAddForm)}
+          className="px-3 py-1.5 text-sm"
+        >
+          <Plus size={16} />
+          Add Weight
+        </Button>
       </div>
+
+      {showAddForm && (
+        <div className="mb-4 p-3 bg-white/5 rounded-lg">
+          <div className="flex gap-2">
+            <Input
+              type="number"
+              placeholder="Weight (kg)"
+              value={newWeight}
+              onChange={(e) => setNewWeight(e.target.value)}
+              className="flex-1"
+              step="0.1"
+              min="1"
+            />
+            <Button onClick={addWeightEntry} className="px-4">
+              Save
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => setShowAddForm(false)}
+              className="px-4"
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {weightData && weightData.length > 0 && (
+        <div className="h-[250px] mb-4">
+          <Line data={data} options={options} />
+        </div>
+      )}
+
+      {currentWeight ? (
+        <div className="text-center">
+          <div className="text-3xl md:text-4xl font-bold text-white mb-2">
+            {currentWeight.toFixed(1)} kg
+          </div>
+          <div className="flex items-center justify-center gap-2 text-sm mb-4">
+            {weightChange !== 0 && (
+              <>
+                {weightChange > 0 ? (
+                  <TrendingUp size={16} className="text-green-400" />
+                ) : (
+                  <TrendingDown size={16} className="text-red-400" />
+                )}
+                <span className={weightChange > 0 ? 'text-green-400' : 'text-red-400'}>
+                  {weightChange > 0 ? '+' : ''}{weightChange.toFixed(1)} kg
+                </span>
+              </>
+            )}
+          </div>
+          <div className="text-white/60 text-sm">
+            {weightData?.length || 0} measurements
+          </div>
+        </div>
+      ) : (
+        <div className="text-center py-8">
+          <div className="text-white/40 mb-4">
+            No weight entries yet
+          </div>
+          <Button onClick={() => setShowAddForm(true)}>
+            Add Your First Weight
+          </Button>
+        </div>
+      )}
     </GlassWidget>
   );
 }

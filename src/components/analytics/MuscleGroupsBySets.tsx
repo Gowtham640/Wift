@@ -19,19 +19,22 @@ interface MuscleGroupsBySetsProps {
 }
 
 export default function MuscleGroupsBySets({ timePeriod }: MuscleGroupsBySetsProps) {
-  // Track completed workouts to force re-renders when workouts are completed
+  // Track workouts to force re-renders when workouts are added/completed/deleted
   const deletionTracker = useLiveQuery(async () => {
-    return await db.workouts.where('endTime').above(0).count(); // Changes when workouts are completed/incompleted
+    return await db.workouts.count(); // Changes when workouts are added/deleted
   });
 
   const muscleGroupData = useLiveQuery(async () => {
     const { startDate, endDate } = getDateRangeForPeriod(timePeriod);
 
-    const workouts = await db.workouts
-      .where('date')
-      .between(getLocalDateString(startDate), getLocalDateString(endDate))
-      .and(workout => workout.endTime !== undefined)
-      .toArray();
+    // Get all workouts first, then filter by date and completion
+    const allWorkoutsInDb = await db.workouts.toArray();
+
+    const workouts = allWorkoutsInDb.filter(workout =>
+      workout.endTime !== undefined &&
+      workout.date >= getLocalDateString(startDate) &&
+      workout.date <= getLocalDateString(endDate)
+    );
 
     const muscleGroupSets: { [key: string]: number } = {};
 

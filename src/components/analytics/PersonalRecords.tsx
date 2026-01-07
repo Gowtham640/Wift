@@ -1,6 +1,7 @@
 'use client';
 
 import { useLiveQuery } from 'dexie-react-hooks';
+import { useRouter } from 'next/navigation';
 import { db } from '@/lib/db';
 import GlassWidget from '@/components/ui/GlassWidget';
 import { TimePeriod, getDateRangeForPeriod } from './TimeFilter';
@@ -22,19 +23,28 @@ interface PersonalRecordsProps {
 }
 
 export default function PersonalRecords({ timePeriod }: PersonalRecordsProps) {
-  // Track completed workouts to force re-renders when workouts are completed
+  const router = useRouter();
+
+  // Track workouts to force re-renders when workouts are added/completed/deleted
   const deletionTracker = useLiveQuery(async () => {
-    return await db.workouts.where('endTime').above(0).count(); // Changes when workouts are completed/incompleted
+    return await db.workouts.count(); // Changes when workouts are added/deleted
   });
+
+  const handleExerciseClick = (exerciseId: number) => {
+    router.push(`/exercises/${exerciseId}`);
+  };
 
   const personalRecords = useLiveQuery(async () => {
     const { startDate, endDate } = getDateRangeForPeriod(timePeriod);
 
-    const workouts = await db.workouts
-      .where('date')
-      .between(getLocalDateString(startDate), getLocalDateString(endDate))
-      .and(workout => workout.endTime !== undefined)
-      .toArray();
+    // Get all workouts first, then filter by date and completion
+    const allWorkoutsInDb = await db.workouts.toArray();
+
+    const workouts = allWorkoutsInDb.filter(workout =>
+      workout.endTime !== undefined &&
+      workout.date >= getLocalDateString(startDate) &&
+      workout.date <= getLocalDateString(endDate)
+    );
 
     const workoutIds = workouts.map(w => w.id!);
     const records: PersonalRecord[] = [];
@@ -128,7 +138,8 @@ export default function PersonalRecords({ timePeriod }: PersonalRecordsProps) {
           {personalRecords.map((record, index) => (
             <div
               key={record.exerciseId}
-              className="flex items-center justify-between p-3 rounded-lg bg-gradient-to-r from-yellow-500/10 to-orange-500/10 border border-yellow-500/20"
+              className="flex items-center justify-between p-3 rounded-lg bg-gradient-to-r from-yellow-500/10 to-orange-500/10 border border-yellow-500/20 hover:from-yellow-500/15 hover:to-orange-500/15 transition-colors cursor-pointer"
+              onClick={() => handleExerciseClick(record.exerciseId)}
             >
               <div className="flex items-center gap-3">
                 <div className="flex items-center justify-center w-8 h-8 rounded-full bg-yellow-500/20 text-yellow-400 font-bold text-sm">

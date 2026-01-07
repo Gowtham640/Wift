@@ -3,9 +3,16 @@ import GlassWidget from '@/components/ui/GlassWidget';
 import { formatDate, formatDuration } from '@/lib/utils';
 import Link from 'next/link';
 import { useLiveQuery } from 'dexie-react-hooks';
+import { useRouter } from 'next/navigation';
 import { db } from '@/lib/db';
 
 export default function LatestWorkoutWidget() {
+  const router = useRouter();
+
+  const handleExerciseClick = (exerciseId: number) => {
+    router.push(`/exercises/${exerciseId}`);
+  };
+
   // Handle data loading internally to avoid blocking page render
   const workout = useLiveQuery(async () => {
     const workout = await db.workouts.orderBy('date').reverse().first();
@@ -135,7 +142,12 @@ export default function LatestWorkoutWidget() {
           <div className="space-y-1">
             {workout.exercises.slice(0, 3).map((ex) => (
               <div key={ex.workoutExercise.id} className="flex items-center justify-between">
-                <span className="text-sm text-white/80">{ex.exercise.name}</span>
+                <span
+                  className="text-sm text-white/80 cursor-pointer hover:text-blue-400 transition-colors"
+                  onClick={() => ex.exercise.id && handleExerciseClick(ex.exercise.id)}
+                >
+                  {ex.exercise.name}
+                </span>
                 <span className="text-xs text-white/40">
                   {ex.sets.filter(s => s.completed).length} sets
                 </span>

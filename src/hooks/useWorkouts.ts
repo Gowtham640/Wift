@@ -51,45 +51,92 @@ export function useWorkouts() {
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   });
 
-  const createWorkout = async (routineId?: number) => {
-    const today = getTodayString();
+  const createWorkout = async (routineId?: number, customDate?: string) => {
+    const workoutDate = customDate || getTodayString();
 
-    // Check if there's already an incomplete workout for this routine today
-    if (routineId) {
-      const todaysWorkouts = await db.workouts
-        .where('[routineId+date]')
-        .equals([routineId, today])
-        .toArray();
+    // FIRST: Check for ANY incomplete workout (not just same routine/date)
+    const allWorkouts = await db.workouts.toArray();
+    const incompleteWorkouts = allWorkouts.filter(workout => workout.endTime === undefined);
 
-      const existingWorkout = todaysWorkouts.find(workout => workout.endTime === undefined);
+    if (incompleteWorkouts.length > 0) {
+      console.log('⚠️ Found', incompleteWorkouts.length, 'incomplete workout(s). Discarding them to ensure only one active workout.');
 
-      if (existingWorkout) {
-        console.log('🔄 Found existing incomplete workout, reusing:', existingWorkout.id);
-        return existingWorkout.id!;
+      // Delete all incomplete workouts and their associated data
+      for (const workout of incompleteWorkouts) {
+        console.log('🗑️ Discarding incomplete workout:', workout.id);
+
+        // Delete associated workout exercises and sets
+        const workoutExercises = await db.workout_exercises
+          .where('workoutId')
+          .equals(workout.id!)
+          .toArray();
+
+        await Promise.all(
+          workoutExercises.map(async (we) => {
+            await db.sets.where('workoutExerciseId').equals(we.id!).delete();
+          })
+        );
+
+        await db.workout_exercises
+          .where('workoutId')
+          .equals(workout.id!)
+          .delete();
+
+        await db.workouts.delete(workout.id!);
       }
+
+      console.log('✅ All incomplete workouts discarded. Proceeding with new workout creation.');
     }
+
+    // Continue with normal workout creation...
 
     const workoutId = await db.workouts.add({
       routineId,
-      date: today,
+      date: workoutDate,
       startTime: Date.now()
     });
 
     if (routineId) {
+      console.log('🏗️ WORKOUT CREATION: Creating workout from routine ID:', routineId);
+
       const routineExercises = await db.routine_exercises
         .where('routineId')
         .equals(routineId)
         .sortBy('order');
 
+      console.log('🏗️ WORKOUT CREATION: Found', routineExercises.length, 'exercises in routine');
+
+      // Create workout exercises and initial sets based on routine targets
       await Promise.all(
-        routineExercises.map((re) =>
-          db.workout_exercises.add({
+        routineExercises.map(async (re) => {
+          console.log(`🏗️ WORKOUT CREATION: Creating workout exercise for routine exercise ID ${re.id} (${re.targetSets || 1} sets)`);
+
+          const workoutExerciseId = await db.workout_exercises.add({
             workoutId: Number(workoutId),
             exerciseId: re.exerciseId,
             order: re.order
-          })
-        )
+          });
+
+          // Create the target number of sets for this exercise
+          const targetSets = re.targetSets || 1;
+          console.log(`🏗️ WORKOUT CREATION: Creating ${targetSets} initial sets for workout exercise ${workoutExerciseId}`);
+
+          await Promise.all(
+            Array.from({ length: targetSets }, () =>
+              db.sets.add({
+                workoutExerciseId: Number(workoutExerciseId),
+                weight: 0,
+                reps: 0,
+                completed: false
+              })
+            )
+          );
+
+          console.log(`✅ WORKOUT CREATION: Created ${targetSets} sets for workout exercise ${workoutExerciseId}`);
+        })
       );
+
+      console.log('✅ WORKOUT CREATION: Routine workout created successfully');
     }
 
     return workoutId;
@@ -97,6 +144,8 @@ export function useWorkouts() {
 
   const updateWorkout = async (id: number, updates: Partial<Workout>) => {
     await db.workouts.update(id, updates);
+    // Force reactivity for live queries
+    await db.workouts.count();
   };
 
   const deleteWorkout = async (id: number) => {
@@ -224,17 +273,33 @@ export function useWorkout(id: number | null) {
     return result;
   }, [id]);
 
-  const addExerciseToWorkout = async (workoutId: number, exerciseId: number) => {
+  const addExerciseToWorkout = async (workoutId: number, exerciseId: number, defaultSets: number = 3) => {
     const existingCount = await db.workout_exercises
       .where('workoutId')
       .equals(workoutId)
       .count();
 
-    await db.workout_exercises.add({
+    const workoutExerciseId = await db.workout_exercises.add({
       workoutId,
       exerciseId,
       order: existingCount
     });
+
+    // Create default sets for the new exercise
+    console.log(`🏗️ ADDING EXERCISE: Creating ${defaultSets} sets for workout exercise ${workoutExerciseId}`);
+
+    await Promise.all(
+      Array.from({ length: defaultSets }, () =>
+        db.sets.add({
+          workoutExerciseId: Number(workoutExerciseId),
+          weight: 0,
+          reps: 0,
+          completed: false
+        })
+      )
+    );
+
+    console.log(`✅ ADDING EXERCISE: Created ${defaultSets} sets for workout exercise ${workoutExerciseId}`);
   };
 
   const completeWorkout = async (workoutId: number) => {

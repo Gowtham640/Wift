@@ -1,6 +1,7 @@
 'use client';
 
 import { useLiveQuery } from 'dexie-react-hooks';
+import { useRouter } from 'next/navigation';
 import { db } from '@/lib/db';
 import GlassWidget from '@/components/ui/GlassWidget';
 import TimeFilter, { TimePeriod, getDateRangeForPeriod } from './TimeFilter';
@@ -23,19 +24,28 @@ interface TopExercisesProps {
 }
 
 export default function TopExercises({ timePeriod }: TopExercisesProps) {
-  // Track completed workouts to force re-renders when workouts are completed
+  const router = useRouter();
+
+  // Track workouts to force re-renders when workouts are added/completed/deleted
   const deletionTracker = useLiveQuery(async () => {
-    return await db.workouts.where('endTime').above(0).count(); // Changes when workouts are completed/incompleted
+    return await db.workouts.count(); // Changes when workouts are added/deleted
   });
+
+  const handleExerciseClick = (exerciseId: number) => {
+    router.push(`/exercises/${exerciseId}`);
+  };
 
   const topExercises = useLiveQuery(async () => {
     const { startDate, endDate } = getDateRangeForPeriod(timePeriod);
 
-    const workouts = await db.workouts
-      .where('date')
-      .between(getLocalDateString(startDate), getLocalDateString(endDate))
-      .and(workout => workout.endTime !== undefined)
-      .toArray();
+    // Get all workouts first, then filter by date and completion
+    const allWorkoutsInDb = await db.workouts.toArray();
+
+    const workouts = allWorkoutsInDb.filter(workout =>
+      workout.endTime !== undefined &&
+      workout.date >= getLocalDateString(startDate) &&
+      workout.date <= getLocalDateString(endDate)
+    );
 
     const exerciseStats: { [key: number]: TopExercise } = {};
 
@@ -95,7 +105,11 @@ export default function TopExercises({ timePeriod }: TopExercisesProps) {
       ) : (
         <div className="space-y-3">
           {topExercises.map((exercise, index) => (
-            <div key={exercise.exerciseId} className="flex items-center justify-between p-3 rounded-lg bg-white/5">
+            <div
+              key={exercise.exerciseId}
+              className="flex items-center justify-between p-3 rounded-lg bg-white/5 hover:bg-white/10 transition-colors cursor-pointer"
+              onClick={() => handleExerciseClick(exercise.exerciseId)}
+            >
               <div className="flex items-center gap-3">
                 <div className="flex items-center justify-center w-8 h-8 rounded-full bg-green-500/20 text-green-400 font-bold text-sm">
                   {index + 1}

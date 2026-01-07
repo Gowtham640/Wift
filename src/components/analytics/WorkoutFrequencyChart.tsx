@@ -1,14 +1,12 @@
 'use client';
 
-import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
-import { Pie } from 'react-chartjs-2';
+import { Flame, Clock } from 'lucide-react';
 import GlassWidget from '@/components/ui/GlassWidget';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/lib/db';
 import { TimePeriod, getDateRangeForPeriod } from './TimeFilter';
-import { getLocalDateString } from '@/lib/utils';
+import { getLocalDateString, formatDuration } from '@/lib/utils';
 
-ChartJS.register(ArcElement, Tooltip, Legend);
 
 interface WorkoutFrequencyChartProps {
   timePeriod: TimePeriod;
@@ -17,106 +15,110 @@ interface WorkoutFrequencyChartProps {
 export default function WorkoutFrequencyChart({
   timePeriod
 }: WorkoutFrequencyChartProps) {
-  // Track completed workouts to force re-renders when workouts are completed
+  // Track workouts to force re-renders when workouts are added/completed/deleted
   const deletionTracker = useLiveQuery(async () => {
-    return await db.workouts.where('endTime').above(0).count(); // Changes when workouts are completed/incompleted
+    return await db.workouts.count(); // Changes when workouts are added/deleted
   });
 
-  const workoutStats = useLiveQuery(async () => {
+  const workoutData = useLiveQuery(async () => {
     const { startDate, endDate } = getDateRangeForPeriod(timePeriod);
 
-    // Calculate total days in the period
-    const totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+    // Get all workouts first, then filter by date and completion
+    const allWorkouts = await db.workouts.toArray();
 
-    // Get unique workout days in the period (only completed workouts)
-    const workouts = await db.workouts
-      .where('date')
-      .between(getLocalDateString(startDate), getLocalDateString(endDate))
-      .and(workout => workout.endTime !== undefined)
-      .toArray();
+    const completedWorkouts = allWorkouts.filter(workout =>
+      workout.endTime !== undefined &&
+      workout.date >= getLocalDateString(startDate) &&
+      workout.date <= getLocalDateString(endDate)
+    );
 
-    const uniqueWorkoutDays = new Set(workouts.map(w => w.date)).size;
-    const restDays = Math.max(0, totalDays - uniqueWorkoutDays);
+    // Calculate current streak
+    let currentStreak = 0;
+    const today = getLocalDateString(new Date());
+    let checkDate = new Date();
 
-    return {
-      workoutDays: uniqueWorkoutDays,
-      restDays: restDays,
-      totalDays: totalDays
-    };
-  }, [timePeriod, deletionTracker]); // Include deletionTracker in dependencies
+    // Check consecutive days backwards from today
+    for (let i = 0; i < 365; i++) {
+      const dateString = getLocalDateString(checkDate);
+      const hasWorkout = allWorkouts.some(w =>
+        w.endTime !== undefined && w.date === dateString
+      );
 
-  const data = {
-    labels: ['Workout Days', 'Rest Days'],
-    datasets: [
-      {
-        data: [workoutStats?.workoutDays || 0, workoutStats?.restDays || 0],
-        backgroundColor: [
-          'rgba(255, 255, 255, 0.8)',
-          'rgba(255, 255, 255, 0.1)'
-        ],
-        borderColor: [
-          'rgba(255, 255, 255, 1)',
-          'rgba(255, 255, 255, 0.2)'
-        ],
-        borderWidth: 2
-      }
-    ]
-  };
-
-  const options = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: {
-        position: 'bottom' as const,
-        labels: {
-          color: 'rgba(255, 255, 255, 0.8)',
-          font: {
-            size: 14
-          },
-          padding: 20
-        }
-      },
-      tooltip: {
-        backgroundColor: 'rgba(0, 0, 0, 0.8)',
-        titleColor: 'rgba(255, 255, 255, 1)',
-        bodyColor: 'rgba(255, 255, 255, 0.8)',
-        borderColor: 'rgba(255, 255, 255, 0.1)',
-        borderWidth: 1,
-        padding: 12,
-        displayColors: true
+      if (hasWorkout) {
+        currentStreak++;
+        checkDate.setDate(checkDate.getDate() - 1);
+      } else {
+        break;
       }
     }
-  };
 
-  const totalDays = (workoutStats?.workoutDays || 0) + (workoutStats?.restDays || 0);
-  const workoutPercentage = totalDays > 0 ? (((workoutStats?.workoutDays || 0) / totalDays) * 100).toFixed(1) : 0;
+    // Calculate average duration
+    let avgDuration = 0;
+    if (completedWorkouts.length > 0) {
+      const durations = completedWorkouts
+        .map(workout => workout.endTime! - workout.startTime)
+        .filter(duration => duration > 0 && duration < 24 * 60 * 60 * 1000); // Valid durations under 24 hours
+
+      if (durations.length > 0) {
+        const totalDuration = durations.reduce((sum, duration) => sum + duration, 0);
+        avgDuration = Math.round(totalDuration / durations.length);
+      }
+    }
+
+    return {
+      count: completedWorkouts.length,
+      currentStreak,
+      avgDuration
+    };
+  }, [timePeriod, deletionTracker]);
+
+
+  if (!workoutData) {
+    return (
+      <GlassWidget widgetId="analytics-frequency" showGlow allowColorChange className="p-4 md:p-6 animate-pulse">
+        <h2 className="text-lg md:text-xl font-bold text-white mb-4 md:mb-6">Total Workouts</h2>
+        <div className="h-32 bg-white/10 rounded"></div>
+      </GlassWidget>
+    );
+  }
 
   return (
     <GlassWidget widgetId="analytics-frequency" showGlow allowColorChange className="p-4 md:p-6">
-      <h2 className="text-lg md:text-xl font-bold text-white mb-4 md:mb-6">Workout Frequency</h2>
+      <h2 className="text-lg md:text-xl font-bold text-white mb-4 md:mb-6">Total Workouts</h2>
 
-      <div className="mb-4 md:mb-6">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-white/60">Workout Days</span>
-          <span className="text-white font-semibold">{workoutStats?.workoutDays || 0}</span>
+      <div className="text-center mb-6">
+        <div className="text-4xl md:text-5xl font-bold text-white mb-1">
+          {workoutData.count}
         </div>
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-white/60">Rest Days</span>
-          <span className="text-white font-semibold">{workoutStats?.restDays || 0}</span>
-        </div>
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-white/60">Total Days</span>
-          <span className="text-white font-semibold">{workoutStats?.totalDays || 0}</span>
-        </div>
-        <div className="flex items-center justify-between pt-2 border-t border-white/10">
-          <span className="text-white/80 font-medium">Workout Rate</span>
-          <span className="text-white font-bold">{workoutPercentage}%</span>
+        <div className="text-white/60 text-sm">
+          workouts completed
         </div>
       </div>
 
-      <div className="h-[300px]">
-        <Pie data={data} options={options} />
+      <div className="grid grid-cols-2 gap-4">
+        {/* Current Streak */}
+        <div className="text-center p-3 rounded-lg bg-orange-500/10 border border-orange-500/20">
+          <div className="flex items-center justify-center gap-1 mb-2">
+            <Flame className="text-orange-400" size={16} />
+            <span className="text-xs text-white/60 font-medium">Streak</span>
+          </div>
+          <div className="text-2xl font-bold text-orange-400">
+            {workoutData.currentStreak}
+          </div>
+          <div className="text-xs text-white/40">days</div>
+        </div>
+
+        {/* Average Duration */}
+        <div className="text-center p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
+          <div className="flex items-center justify-center gap-1 mb-2">
+            <Clock className="text-blue-400" size={16} />
+            <span className="text-xs text-white/60 font-medium">Avg Session</span>
+          </div>
+          <div className="text-lg font-bold text-blue-400">
+            {workoutData.avgDuration > 0 ? formatDuration(workoutData.avgDuration) : '--:--'}
+          </div>
+          <div className="text-xs text-white/40">duration</div>
+        </div>
       </div>
     </GlassWidget>
   );

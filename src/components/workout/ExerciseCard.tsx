@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Plus, Trash2 } from 'lucide-react';
 import GlassWidget from '@/components/ui/GlassWidget';
 import SetRow from './SetRow';
@@ -22,9 +23,28 @@ export default function ExerciseCard({
   previousBest,
   previousVolume = 0
 }: ExerciseCardProps) {
+  const router = useRouter();
   const { sets, addSet, updateSet, deleteSet } = useSets(workoutExerciseId);
-  const [firstSetValues, setFirstSetValues] = useState<{ weight: number; reps: number } | null>(null);
   const [deleteMode, setDeleteMode] = useState(false);
+
+  // Shared values for cascading updates
+  const [sharedWeight, setSharedWeight] = useState<number | undefined>(previousBest?.weight);
+  const [sharedReps, setSharedReps] = useState<number | undefined>(previousBest?.reps);
+
+  // Update shared values when previousBest changes
+  useEffect(() => {
+    setSharedWeight(previousBest?.weight);
+    setSharedReps(previousBest?.reps);
+  }, [previousBest]);
+
+  // Handle value changes from any set (cascading effect)
+  const handleValueChange = (field: 'weight' | 'reps', value: number) => {
+    if (field === 'weight') {
+      setSharedWeight(value);
+    } else {
+      setSharedReps(value);
+    }
+  };
 
   const currentVolume = sets ? calculateTotalVolume(sets) : 0;
   const volumeIncrease = calculateVolumeIncrease(currentVolume, previousVolume);
@@ -33,13 +53,13 @@ export default function ExerciseCard({
     if (sets && sets.length > 0) {
       const firstCompleted = sets.find(s => s.completed);
       if (firstCompleted && firstCompleted.weight > 0 && firstCompleted.reps > 0) {
-        setFirstSetValues({ weight: firstCompleted.weight, reps: firstCompleted.reps });
+        // Could store first set values if needed
       }
     }
   }, [sets]);
 
   const handleAddSet = async () => {
-    const defaultValues = firstSetValues || previousBest;
+    const defaultValues = previousBest;
     await addSet(workoutExerciseId, defaultValues);
   };
 
@@ -50,53 +70,67 @@ export default function ExerciseCard({
   };
 
   const getDefaultValues = (index: number) => {
-    if (firstSetValues) return firstSetValues;
     return previousBest;
   };
 
   return (
-    <GlassWidget className="p-4 md:p-6">
+    <GlassWidget className="p-2 md:p-4">
       <div className="flex items-start justify-between mb-3 md:mb-4 gap-2">
         <div className="flex-1 min-w-0">
-          <h3 className="text-lg md:text-xl font-semibold text-white truncate">{exercise.name}</h3>
+          <h3
+            className="text-lg md:text-xl font-semibold text-blue-400 truncate cursor-pointer hover:text-blue-300 transition-colors"
+            onClick={(e) => {
+              e.stopPropagation();
+              router.push(`/exercises/${exercise.id}`);
+            }}
+          >
+            {exercise.name}
+          </h3>
           <p className="text-xs md:text-sm text-white/60">{exercise.muscleGroup}</p>
         </div>
         <VolumeIndicator percentage={volumeIncrease} />
       </div>
 
-      <div className="space-y-2 md:space-y-3">
-        <div className="grid grid-cols-5 gap-2 md:gap-3 mb-2 text-xs md:text-sm text-white/60 font-medium">
+      <div className="space-y-2 md:space-y-2">
+        {/* Table Headers */}
+        <div className="grid grid-cols-5 gap-2 mb-3 text-sm text-white/60 font-medium bg-white/5 rounded-lg p-3">
           <div className="text-center">Set</div>
-          <div className="text-center hidden sm:block">Previous</div>
-          <div className="text-center sm:hidden">Prev</div>
+          <div className="text-center">Previous</div>
           <div className="text-center">Weight</div>
           <div className="text-center">Reps</div>
           <div className="text-center">Done</div>
         </div>
 
-        {sets?.map((set, index) => (
-          <div key={set.id} className="flex items-center gap-2">
-            <SetRow
-              setNumber={index + 1}
-              set={set}
-              previousBest={getDefaultValues(index)}
-              onUpdate={(updates) => updateSet(set.id!, updates)}
-            />
-            {deleteMode && sets.length > 1 && (
-              <button
-                onClick={() => handleDeleteSet(set.id!)}
-                className="p-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 transition-colors"
-              >
-                <Trash2 size={16} className="text-red-400" />
-              </button>
-            )}
-          </div>
-        ))}
+        <div className="space-y-1">
+          {sets?.map((set, index) => (
+            <div key={set.id} className="grid grid-cols-5 gap-2 items-center bg-white/5 rounded-lg p-2">
+              <SetRow
+                setNumber={index + 1}
+                set={set}
+                previousBest={getDefaultValues(index)}
+                sharedWeight={sharedWeight}
+                sharedReps={sharedReps}
+                onUpdate={(updates) => updateSet(set.id!, updates)}
+                onValueChange={handleValueChange}
+              />
+              <div className="flex justify-center">
+                {deleteMode && sets.length > 1 && (
+                  <button
+                    onClick={() => handleDeleteSet(set.id!)}
+                    className="p-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 transition-colors"
+                  >
+                    <Trash2 size={16} className="text-red-400" />
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
 
-        <div className="flex gap-2 mt-2">
+        <div className="flex gap-2 mt-3">
           <button
             onClick={handleAddSet}
-            className="flex-1 btn btn-secondary"
+            className="flex-1 btn btn-secondary py-2 md:py-3 text-sm"
           >
             <Plus size={16} />
             Add Set
@@ -105,7 +139,9 @@ export default function ExerciseCard({
           {sets && sets.length > 1 && (
             <button
               onClick={() => setDeleteMode(!deleteMode)}
-              className={`flex-1 btn ${deleteMode ? 'btn-danger' : 'btn-secondary'}`}
+              className={`flex-1 btn py-2 md:py-3 text-sm ${
+                deleteMode ? 'btn-danger' : 'btn-secondary'
+              }`}
             >
               <Trash2 size={16} />
               {deleteMode ? 'Done' : 'Remove'}
@@ -114,8 +150,8 @@ export default function ExerciseCard({
         </div>
       </div>
 
-      <div className="mt-4 pt-4 border-t border-white/10">
-        <div className="flex justify-between text-sm">
+      <div className="mt-3 md:mt-4 pt-3 md:pt-4 border-t border-white/10">
+        <div className="flex justify-between text-xs md:text-sm">
           <span className="text-white/60">Total Volume:</span>
           <span className="text-white font-semibold">{currentVolume.toFixed(0)} kg</span>
         </div>

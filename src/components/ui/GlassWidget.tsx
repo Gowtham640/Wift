@@ -36,7 +36,9 @@ export default function GlassWidget({
 
   return (
     <div
-      className={`glass-widget ${showGlow ? 'glass-widget-glow' : ''} ${className}`}
+      className={`relative glass-widget ${
+        showGlow ? 'glass-widget-glow' : ''
+      } ${showColorPicker ? 'widget-expanded' : ''} overflow-visible ${className}`}
       style={style}
       onClick={onClick}
     >
@@ -51,7 +53,7 @@ export default function GlassWidget({
       )}
       
       {showColorPicker && widgetId && (
-        <div className="absolute top-14 right-4 z-20">
+        <div className="absolute top-16 right-4 z-20 md:top-14 md:right-4">
           <GlowColorPicker
             currentColor={glowColor}
             onColorChange={(color) => updateGlowColor(widgetId, color)}

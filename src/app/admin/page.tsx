@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useExercises } from '@/hooks/useExercises';
 import { useProfile } from '@/hooks/useProfile';
-import { Trash2, Edit, Plus, User, Save, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react';
+import { useSettings } from '@/hooks/useSettings';
+import { Trash2, Edit, Plus, User, Save, ChevronDown, ChevronUp, AlertTriangle, Settings } from 'lucide-react';
 import GlassWidget from '@/components/ui/GlassWidget';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
@@ -17,9 +18,11 @@ export default function AdminPage() {
   const [search, setSearch] = useState('');
   const { exercises, addExercise, updateExercise, deleteExercise, bulkAddExercises, deleteAllExercises } = useExercises({ search });
   const { profile, updateProfile } = useProfile();
+  const { settings, updateSettings } = useSettings();
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingExercise, setEditingExercise] = useState<Exercise | null>(null);
   const [profileName, setProfileName] = useState('');
+  const [previousDataType, setPreviousDataType] = useState('routine_best');
   const [successMessage, setSuccessMessage] = useState('');
   const [exercisesCollapsed, setExercisesCollapsed] = useState(true);
   const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
@@ -30,6 +33,12 @@ export default function AdminPage() {
     }
   }, [profile?.name]);
 
+  useEffect(() => {
+    if (settings?.previousDataType) {
+      setPreviousDataType(settings.previousDataType);
+    }
+  }, [settings?.previousDataType]);
+
   const handleUpdateProfile = async () => {
     try {
       await updateProfile({ name: profileName });
@@ -38,6 +47,18 @@ export default function AdminPage() {
     } catch (error) {
       console.error('Failed to update profile:', error);
       setSuccessMessage('Failed to update profile. Please try again.');
+      setTimeout(() => setSuccessMessage(''), 3000);
+    }
+  };
+
+  const handleUpdatePreviousDataType = async () => {
+    try {
+      await updateSettings({ previousDataType: previousDataType as any });
+      setSuccessMessage('Previous data setting updated successfully!');
+      setTimeout(() => setSuccessMessage(''), 3000);
+    } catch (error) {
+      console.error('Failed to update previous data setting:', error);
+      setSuccessMessage('Failed to update previous data setting. Please try again.');
       setTimeout(() => setSuccessMessage(''), 3000);
     }
   };
@@ -107,6 +128,41 @@ export default function AdminPage() {
           </div>
           <div className="text-sm text-white/60">
             This name will be displayed in the dashboard greeting.
+          </div>
+        </div>
+      </GlassWidget>
+
+      {/* App Settings */}
+      <GlassWidget className="p-4 md:p-6">
+        <div className="flex items-center gap-2 mb-4">
+          <Settings size={20} className="text-white" />
+          <h2 className="text-lg md:text-xl font-bold text-white">App Settings</h2>
+        </div>
+
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-white/80 mb-2">
+              Previous Data Display
+            </label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+              <select
+                value={previousDataType}
+                onChange={(e) => setPreviousDataType(e.target.value)}
+                className="px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="routine_last" className="bg-gray-800 text-white">Previous record of that exercise in that routine</option>
+                <option value="routine_best" className="bg-gray-800 text-white">Previous best record of that exercise in that routine</option>
+                <option value="exercise_last" className="bg-gray-800 text-white">Previous record of that exercise</option>
+                <option value="exercise_best" className="bg-gray-800 text-white">Previous best record of that exercise</option>
+              </select>
+              <Button onClick={handleUpdatePreviousDataType} className="w-full md:w-auto">
+                <Save size={18} />
+                Save Setting
+              </Button>
+            </div>
+            <p className="text-xs text-white/60 mt-2">
+              Choose what data to show as "previous" in workout exercises. Default: Previous best record of that exercise in that routine.
+            </p>
           </div>
         </div>
       </GlassWidget>

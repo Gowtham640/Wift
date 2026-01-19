@@ -75,6 +75,12 @@ export interface WidgetSettings {
   updatedAt: number;
 }
 
+export interface Settings {
+  id: number;
+  previousDataType: 'routine_last' | 'routine_best' | 'exercise_last' | 'exercise_best';
+  updatedAt: number;
+}
+
 const db = new Dexie('GymTrackerDB') as Dexie & {
   profiles: EntityTable<Profile, 'id'>;
   exercises: EntityTable<Exercise, 'id'>;
@@ -85,6 +91,7 @@ const db = new Dexie('GymTrackerDB') as Dexie & {
   sets: EntityTable<Set, 'id'>;
   weight_entries: EntityTable<WeightEntry, 'id'>;
   widget_settings: EntityTable<WidgetSettings, 'id'>;
+  settings: EntityTable<Settings, 'id'>;
 };
 
 db.version(1).stores({
@@ -95,7 +102,8 @@ db.version(1).stores({
   workouts: '++id, routineId, date, startTime',
   workout_exercises: '++id, workoutId, exerciseId, order',
   sets: '++id, workoutExerciseId, completed',
-  widget_settings: 'id, updatedAt'
+  widget_settings: 'id, updatedAt',
+  settings: '++id, previousDataType, updatedAt'
 });
 
 db.version(2).stores({
@@ -106,7 +114,8 @@ db.version(2).stores({
   workouts: '++id, routineId, date, startTime',
   workout_exercises: '++id, workoutId, exerciseId, order',
   sets: '++id, workoutExerciseId, completed',
-  widget_settings: 'id, updatedAt'
+  widget_settings: 'id, updatedAt',
+  settings: '++id, previousDataType, updatedAt'
 }).upgrade(async (tx) => {
   // Add default values for existing routine exercises
   await tx.table('routine_exercises').toCollection().modify((routineExercise: any) => {
@@ -128,7 +137,28 @@ db.version(3).stores({
   workout_exercises: '++id, workoutId, exerciseId, order',
   sets: '++id, workoutExerciseId, completed',
   weight_entries: '++id, date, weight, createdAt',
-  widget_settings: 'id, updatedAt'
+  widget_settings: 'id, updatedAt',
+  settings: '++id, previousDataType, updatedAt'
+});
+
+db.version(4).stores({
+  profiles: '++id, name, updatedAt',
+  exercises: '++id, name, muscleGroup, equipment, isCustom',
+  routines: '++id, name, createdAt',
+  routine_exercises: '++id, routineId, exerciseId, order, targetSets, targetReps',
+  workouts: '++id, routineId, date, startTime',
+  workout_exercises: '++id, workoutId, exerciseId, order',
+  sets: '++id, workoutExerciseId, completed',
+  weight_entries: '++id, date, weight, createdAt',
+  widget_settings: 'id, updatedAt',
+  settings: '++id, previousDataType, updatedAt'
+}).upgrade(async (tx) => {
+  // Initialize default settings
+  await tx.table('settings').add({
+    id: 1,
+    previousDataType: 'routine_best',
+    updatedAt: Date.now()
+  });
 });
 
 export { db };

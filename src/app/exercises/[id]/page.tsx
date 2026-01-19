@@ -363,7 +363,20 @@ export default function ExerciseDetailPage() {
   return (
     <div className="space-y-4 md:space-y-6 max-w-6xl mx-auto">
       <div className="flex items-center gap-3 md:gap-4 px-2 md:px-0">
-        <Button variant="secondary" onClick={() => router.push('/exercises')} className="p-2 md:p-3">
+        <Button variant="secondary" onClick={() => {
+          // Get navigation history from sessionStorage
+          const visitedRoutes = JSON.parse(sessionStorage.getItem('visited_routes') || '[]');
+          const currentIndex = visitedRoutes.indexOf(pathname);
+
+          if (currentIndex > 0) {
+            // Go to the previous page in history
+            const previousPage = visitedRoutes[currentIndex - 1];
+            router.push(previousPage);
+          } else {
+            // Fallback to exercises page if no history
+            router.push('/exercises');
+          }
+        }} className="p-2 md:p-3">
           <ArrowLeft size={18} />
         </Button>
         <div className="flex-1">

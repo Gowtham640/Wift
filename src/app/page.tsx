@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { useProfile } from '@/hooks/useProfile';
+import { useSettings } from '@/hooks/useSettings';
 import { useWorkouts } from '@/hooks/useWorkouts';
 import { Activity, User, Ruler, Scale } from 'lucide-react';
 import CalendarWidget from '@/components/dashboard/CalendarWidget';
@@ -11,10 +12,12 @@ import { calculateBMI } from '@/lib/utils';
 
 export default function DashboardPage() {
   const { profile, updateProfile, initializeProfile } = useProfile();
+  const { initializeSettings } = useSettings();
   const { workouts } = useWorkouts();
 
   useEffect(() => {
     initializeProfile();
+    initializeSettings();
   }, []);
 
 

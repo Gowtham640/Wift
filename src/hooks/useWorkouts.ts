@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type Workout, type WorkoutExercise, type Set } from '@/lib/db';
 import type { WorkoutWithDetails, WorkoutExerciseWithDetails } from '@/lib/types';
 import { calculateTotalVolume, getTodayString } from '@/lib/utils';
+import { useSettings } from './useSettings';
 
 const cleanupIncompleteWorkouts = async () => {
   try {
@@ -178,6 +179,8 @@ export function useWorkouts() {
 }
 
 export function useWorkout(id: number | null) {
+  const { settings } = useSettings();
+
   const workout = useLiveQuery(async () => {
     if (id === null) return null;
 
@@ -213,37 +216,99 @@ export function useWorkout(id: number | null) {
           .equals(we.id!)
           .toArray();
 
-        // Get previous best from last workout
-        const previousWorkouts = await db.workouts
-          .where('date')
-          .below(workout.date)
-          .reverse()
-          .toArray();
-
+        // Get previous data based on settings
         let previousBest = undefined;
-        for (const prevWorkout of previousWorkouts) {
-          const prevWe = await db.workout_exercises
-            .where('workoutId')
-            .equals(prevWorkout.id!)
-            .and(wex => wex.exerciseId === we.exerciseId)
-            .first();
+        const previousDataType = settings?.previousDataType || 'routine_best';
 
-          if (prevWe) {
-            const prevSets = await db.sets
-              .where('workoutExerciseId')
-              .equals(prevWe.id!)
-              .and(s => s.completed)
-              .toArray();
+        if (previousDataType === 'routine_last' || previousDataType === 'routine_best') {
+          // Routine-specific logic
+          const routineWorkouts = await db.workouts
+            .where('date')
+            .below(workout.date)
+            .and(w => w.routineId === workout.routineId)
+            .reverse()
+            .toArray();
 
-            if (prevSets.length > 0) {
-              const maxWeightSet = prevSets.reduce((max, set) =>
-                set.weight > max.weight ? set : max
-              );
-              previousBest = {
-                weight: maxWeightSet.weight,
-                reps: maxWeightSet.reps
-              };
-              break;
+          for (const prevWorkout of routineWorkouts) {
+            const prevWe = await db.workout_exercises
+              .where('workoutId')
+              .equals(prevWorkout.id!)
+              .and(wex => wex.exerciseId === we.exerciseId)
+              .first();
+
+            if (prevWe) {
+              const prevSets = await db.sets
+                .where('workoutExerciseId')
+                .equals(prevWe.id!)
+                .and(s => s.completed)
+                .toArray();
+
+              if (prevSets.length > 0) {
+                if (previousDataType === 'routine_last') {
+                  // Get the most recent set (last in the array since they're ordered by completion)
+                  const lastSet = prevSets[prevSets.length - 1];
+                  previousBest = {
+                    weight: lastSet.weight,
+                    reps: lastSet.reps
+                  };
+                } else {
+                  // routine_best: Get the highest weight set
+                  const maxWeightSet = prevSets.reduce((max, set) =>
+                    set.weight > max.weight ? set : max
+                  );
+                  previousBest = {
+                    weight: maxWeightSet.weight,
+                    reps: maxWeightSet.reps
+                  };
+                }
+                break;
+              }
+            }
+          }
+        } else {
+          // Exercise-wide logic (across all routines)
+          const allPreviousWorkouts = await db.workouts
+            .where('date')
+            .below(workout.date)
+            .reverse()
+            .sortBy('date');
+
+          for (const prevWorkout of allPreviousWorkouts) {
+            const prevWe = await db.workout_exercises
+              .where('workoutId')
+              .equals(prevWorkout.id!)
+              .and(wex => wex.exerciseId === we.exerciseId)
+              .first();
+
+            if (prevWe) {
+              const prevSets = await db.sets
+                .where('workoutExerciseId')
+                .equals(prevWe.id!)
+                .and(s => s.completed)
+                .toArray();
+
+              if (prevSets.length > 0) {
+                if (previousDataType === 'exercise_last') {
+                  // Get the most recent set (last completed set from the most recent workout)
+                  const lastSet = prevSets[prevSets.length - 1];
+                  previousBest = {
+                    weight: lastSet.weight,
+                    reps: lastSet.reps
+                  };
+                  break; // Found the most recent workout with this exercise, stop here
+                } else {
+                  // exercise_best: Continue to find the highest weight across all workouts
+                  const maxWeightSet = prevSets.reduce((max, set) =>
+                    set.weight > max.weight ? set : max
+                  );
+                  if (!previousBest || maxWeightSet.weight > previousBest.weight) {
+                    previousBest = {
+                      weight: maxWeightSet.weight,
+                      reps: maxWeightSet.reps
+                    };
+                  }
+                }
+              }
             }
           }
         }

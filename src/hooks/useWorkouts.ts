@@ -216,8 +216,8 @@ export function useWorkout(id: number | null) {
           .equals(we.id!)
           .toArray();
 
-        // Get previous data based on settings
-        let previousBest = undefined;
+        // Get previous sets based on settings
+        let previousSets: Set[] = [];
         const previousDataType = settings?.previousDataType || 'routine_best';
 
         if (previousDataType === 'routine_last' || previousDataType === 'routine_best') {
@@ -229,41 +229,57 @@ export function useWorkout(id: number | null) {
             .reverse()
             .toArray();
 
-          for (const prevWorkout of routineWorkouts) {
-            const prevWe = await db.workout_exercises
-              .where('workoutId')
-              .equals(prevWorkout.id!)
-              .and(wex => wex.exerciseId === we.exerciseId)
-              .first();
+          if (previousDataType === 'routine_last') {
+            // Find the most recent workout with this exercise
+            for (const prevWorkout of routineWorkouts) {
+              const prevWe = await db.workout_exercises
+                .where('workoutId')
+                .equals(prevWorkout.id!)
+                .and(wex => wex.exerciseId === we.exerciseId)
+                .first();
 
-            if (prevWe) {
-              const prevSets = await db.sets
-                .where('workoutExerciseId')
-                .equals(prevWe.id!)
-                .and(s => s.completed)
-                .toArray();
+              if (prevWe) {
+                const prevSetsData = await db.sets
+                  .where('workoutExerciseId')
+                  .equals(prevWe.id!)
+                  .and(s => s.completed)
+                  .toArray();
 
-              if (prevSets.length > 0) {
-                if (previousDataType === 'routine_last') {
-                  // Get the most recent set (last in the array since they're ordered by completion)
-                  const lastSet = prevSets[prevSets.length - 1];
-                  previousBest = {
-                    weight: lastSet.weight,
-                    reps: lastSet.reps
-                  };
-                } else {
-                  // routine_best: Get the highest weight set
-                  const maxWeightSet = prevSets.reduce((max, set) =>
-                    set.weight > max.weight ? set : max
-                  );
-                  previousBest = {
-                    weight: maxWeightSet.weight,
-                    reps: maxWeightSet.reps
-                  };
+                if (prevSetsData.length > 0) {
+                  previousSets = prevSetsData;
+                  break; // Found the most recent workout with this exercise
                 }
-                break;
               }
             }
+          } else {
+            // routine_best: Find the workout with the highest total volume for this exercise
+            let bestVolume = 0;
+            let bestSets: Set[] = [];
+
+            for (const prevWorkout of routineWorkouts) {
+              const prevWe = await db.workout_exercises
+                .where('workoutId')
+                .equals(prevWorkout.id!)
+                .and(wex => wex.exerciseId === we.exerciseId)
+                .first();
+
+              if (prevWe) {
+                const prevSetsData = await db.sets
+                  .where('workoutExerciseId')
+                  .equals(prevWe.id!)
+                  .and(s => s.completed)
+                  .toArray();
+
+                if (prevSetsData.length > 0) {
+                  const totalVolume = prevSetsData.reduce((sum, set) => sum + (set.weight * set.reps), 0);
+                  if (totalVolume > bestVolume) {
+                    bestVolume = totalVolume;
+                    bestSets = prevSetsData;
+                  }
+                }
+              }
+            }
+            previousSets = bestSets;
           }
         } else {
           // Exercise-wide logic (across all routines)
@@ -273,43 +289,57 @@ export function useWorkout(id: number | null) {
             .reverse()
             .sortBy('date');
 
-          for (const prevWorkout of allPreviousWorkouts) {
-            const prevWe = await db.workout_exercises
-              .where('workoutId')
-              .equals(prevWorkout.id!)
-              .and(wex => wex.exerciseId === we.exerciseId)
-              .first();
+          if (previousDataType === 'exercise_last') {
+            // Find the most recent workout with this exercise
+            for (const prevWorkout of allPreviousWorkouts) {
+              const prevWe = await db.workout_exercises
+                .where('workoutId')
+                .equals(prevWorkout.id!)
+                .and(wex => wex.exerciseId === we.exerciseId)
+                .first();
 
-            if (prevWe) {
-              const prevSets = await db.sets
-                .where('workoutExerciseId')
-                .equals(prevWe.id!)
-                .and(s => s.completed)
-                .toArray();
+              if (prevWe) {
+                const prevSetsData = await db.sets
+                  .where('workoutExerciseId')
+                  .equals(prevWe.id!)
+                  .and(s => s.completed)
+                  .toArray();
 
-              if (prevSets.length > 0) {
-                if (previousDataType === 'exercise_last') {
-                  // Get the most recent set (last completed set from the most recent workout)
-                  const lastSet = prevSets[prevSets.length - 1];
-                  previousBest = {
-                    weight: lastSet.weight,
-                    reps: lastSet.reps
-                  };
-                  break; // Found the most recent workout with this exercise, stop here
-                } else {
-                  // exercise_best: Continue to find the highest weight across all workouts
-                  const maxWeightSet = prevSets.reduce((max, set) =>
-                    set.weight > max.weight ? set : max
-                  );
-                  if (!previousBest || maxWeightSet.weight > previousBest.weight) {
-                    previousBest = {
-                      weight: maxWeightSet.weight,
-                      reps: maxWeightSet.reps
-                    };
+                if (prevSetsData.length > 0) {
+                  previousSets = prevSetsData;
+                  break; // Found the most recent workout with this exercise
+                }
+              }
+            }
+          } else {
+            // exercise_best: Find the workout with the highest total volume for this exercise
+            let bestVolume = 0;
+            let bestSets: Set[] = [];
+
+            for (const prevWorkout of allPreviousWorkouts) {
+              const prevWe = await db.workout_exercises
+                .where('workoutId')
+                .equals(prevWorkout.id!)
+                .and(wex => wex.exerciseId === we.exerciseId)
+                .first();
+
+              if (prevWe) {
+                const prevSetsData = await db.sets
+                  .where('workoutExerciseId')
+                  .equals(prevWe.id!)
+                  .and(s => s.completed)
+                  .toArray();
+
+                if (prevSetsData.length > 0) {
+                  const totalVolume = prevSetsData.reduce((sum, set) => sum + (set.weight * set.reps), 0);
+                  if (totalVolume > bestVolume) {
+                    bestVolume = totalVolume;
+                    bestSets = prevSetsData;
                   }
                 }
               }
             }
+            previousSets = bestSets;
           }
         }
 
@@ -317,7 +347,7 @@ export function useWorkout(id: number | null) {
           workoutExercise: we,
           exercise: exercise!,
           sets,
-          previousBest
+          previousSets
         };
       })
     );

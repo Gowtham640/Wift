@@ -7,35 +7,37 @@ import GlassWidget from '@/components/ui/GlassWidget';
 import SetRow from './SetRow';
 import VolumeIndicator from './VolumeIndicator';
 import { useSets } from '@/hooks/useWorkouts';
-import { type Exercise } from '@/lib/db';
+import { type Exercise, type Set } from '@/lib/db';
 import { calculateTotalVolume, calculateVolumeIncrease } from '@/lib/utils';
 
 interface ExerciseCardProps {
   workoutExerciseId: number;
   exercise: Exercise;
-  previousBest?: { weight: number; reps: number };
+  previousSets: Set[];
   previousVolume?: number;
 }
 
 export default function ExerciseCard({
   workoutExerciseId,
   exercise,
-  previousBest,
+  previousSets,
   previousVolume = 0
 }: ExerciseCardProps) {
   const router = useRouter();
   const { sets, addSet, updateSet, deleteSet } = useSets(workoutExerciseId);
   const [deleteMode, setDeleteMode] = useState(false);
 
-  // Shared values for cascading updates
-  const [sharedWeight, setSharedWeight] = useState<number | undefined>(previousBest?.weight);
-  const [sharedReps, setSharedReps] = useState<number | undefined>(previousBest?.reps);
+  // Shared values for cascading updates - use the first set's values as defaults
+  const [sharedWeight, setSharedWeight] = useState<number | undefined>(previousSets?.[0]?.weight);
+  const [sharedReps, setSharedReps] = useState<number | undefined>(previousSets?.[0]?.reps);
 
-  // Update shared values when previousBest changes
+  // Update shared values when previousSets changes
   useEffect(() => {
-    setSharedWeight(previousBest?.weight);
-    setSharedReps(previousBest?.reps);
-  }, [previousBest]);
+    if (previousSets && previousSets.length > 0) {
+      setSharedWeight(previousSets[0].weight);
+      setSharedReps(previousSets[0].reps);
+    }
+  }, [previousSets]);
 
   // Handle value changes from any set (cascading effect)
   const handleValueChange = (field: 'weight' | 'reps', value: number) => {
@@ -59,7 +61,7 @@ export default function ExerciseCard({
   }, [sets]);
 
   const handleAddSet = async () => {
-    const defaultValues = previousBest;
+    const defaultValues = previousSets?.[0] ? { weight: previousSets[0].weight, reps: previousSets[0].reps } : undefined;
     await addSet(workoutExerciseId, defaultValues);
   };
 
@@ -70,7 +72,9 @@ export default function ExerciseCard({
   };
 
   const getDefaultValues = (index: number) => {
-    return previousBest;
+    // Return the set at the corresponding index from previous workout, or first set if not available
+    const previousSet = previousSets?.[index] || previousSets?.[0];
+    return previousSet ? { weight: previousSet.weight, reps: previousSet.reps } : undefined;
   };
 
   return (

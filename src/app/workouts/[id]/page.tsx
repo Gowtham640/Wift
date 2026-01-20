@@ -445,7 +445,7 @@ export default function WorkoutPage() {
                     key={workoutExercise.workoutExercise.id}
                     workoutExerciseId={workoutExercise.workoutExercise.id!}
                     exercise={workoutExercise.exercise}
-                    previousBest={workoutExercise.previousBest}
+                    previousSets={workoutExercise.previousSets}
                     previousVolume={0}
                   />
                 ))

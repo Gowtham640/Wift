@@ -30,10 +30,7 @@ export interface WorkoutExerciseWithDetails {
   workoutExercise: WorkoutExercise;
   exercise: Exercise;
   sets: Set[];
-  previousBest?: {
-    weight: number;
-    reps: number;
-  };
+  previousSets: Set[];
 }
 
 export interface RoutineWithExercises {

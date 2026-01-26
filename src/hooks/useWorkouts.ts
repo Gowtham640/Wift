@@ -1,7 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type Workout, type WorkoutExercise, type Set } from '@/lib/db';
 import type { WorkoutWithDetails, WorkoutExerciseWithDetails } from '@/lib/types';
-import { calculateTotalVolume, getTodayString } from '@/lib/utils';
+import { calculateTotalVolume, calculateOneRepMax, getTodayString } from '@/lib/utils';
 import { useSettings } from './useSettings';
 
 const cleanupIncompleteWorkouts = async () => {
@@ -208,6 +208,49 @@ export function useWorkout(id: number | null) {
       .equals(id)
       .sortBy('order');
 
+    const calculateHighestOneRm = (sets: Set[]): number =>
+      sets.reduce((maxOneRm, set) => {
+        const oneRm = calculateOneRepMax(set.weight, set.reps);
+        return oneRm > maxOneRm ? oneRm : maxOneRm;
+      }, 0);
+
+    const findBestSetsByOneRm = async (
+      candidateWorkouts: Workout[],
+      targetExerciseId: number
+    ): Promise<Set[]> => {
+      let bestOneRm = 0;
+      let bestSets: Set[] = [];
+
+      for (const prevWorkout of candidateWorkouts) {
+        if (!prevWorkout.id) continue;
+
+        const prevWe = await db.workout_exercises
+          .where('workoutId')
+          .equals(prevWorkout.id)
+          .and(wex => wex.exerciseId === targetExerciseId)
+          .first();
+
+        if (!prevWe) continue;
+
+        const prevSetsData = await db.sets
+          .where('workoutExerciseId')
+          .equals(prevWe.id!)
+          .and(s => s.completed)
+          .toArray();
+
+        if (prevSetsData.length === 0) continue;
+
+        const highestOneRm = calculateHighestOneRm(prevSetsData);
+
+        if (highestOneRm > bestOneRm) {
+          bestOneRm = highestOneRm;
+          bestSets = prevSetsData;
+        }
+      }
+
+      return bestSets;
+    };
+
     const exercisesWithDetails: WorkoutExerciseWithDetails[] = await Promise.all(
       workoutExercises.map(async (we) => {
         const exercise = await db.exercises.get(we.exerciseId);
@@ -252,34 +295,8 @@ export function useWorkout(id: number | null) {
               }
             }
           } else {
-            // routine_best: Find the workout with the highest total volume for this exercise
-            let bestVolume = 0;
-            let bestSets: Set[] = [];
-
-            for (const prevWorkout of routineWorkouts) {
-              const prevWe = await db.workout_exercises
-                .where('workoutId')
-                .equals(prevWorkout.id!)
-                .and(wex => wex.exerciseId === we.exerciseId)
-                .first();
-
-              if (prevWe) {
-                const prevSetsData = await db.sets
-                  .where('workoutExerciseId')
-                  .equals(prevWe.id!)
-                  .and(s => s.completed)
-                  .toArray();
-
-                if (prevSetsData.length > 0) {
-                  const totalVolume = prevSetsData.reduce((sum, set) => sum + (set.weight * set.reps), 0);
-                  if (totalVolume > bestVolume) {
-                    bestVolume = totalVolume;
-                    bestSets = prevSetsData;
-                  }
-                }
-              }
-            }
-            previousSets = bestSets;
+            // routine_best: Choose the workout with the highest 1RM for this exercise
+            previousSets = await findBestSetsByOneRm(routineWorkouts, we.exerciseId);
           }
         } else {
           // Exercise-wide logic (across all routines)
@@ -312,34 +329,8 @@ export function useWorkout(id: number | null) {
               }
             }
           } else {
-            // exercise_best: Find the workout with the highest total volume for this exercise
-            let bestVolume = 0;
-            let bestSets: Set[] = [];
-
-            for (const prevWorkout of allPreviousWorkouts) {
-              const prevWe = await db.workout_exercises
-                .where('workoutId')
-                .equals(prevWorkout.id!)
-                .and(wex => wex.exerciseId === we.exerciseId)
-                .first();
-
-              if (prevWe) {
-                const prevSetsData = await db.sets
-                  .where('workoutExerciseId')
-                  .equals(prevWe.id!)
-                  .and(s => s.completed)
-                  .toArray();
-
-                if (prevSetsData.length > 0) {
-                  const totalVolume = prevSetsData.reduce((sum, set) => sum + (set.weight * set.reps), 0);
-                  if (totalVolume > bestVolume) {
-                    bestVolume = totalVolume;
-                    bestSets = prevSetsData;
-                  }
-                }
-              }
-            }
-            previousSets = bestSets;
+            // exercise_best: Choose the workout with the highest 1RM for this exercise
+            previousSets = await findBestSetsByOneRm(allPreviousWorkouts, we.exerciseId);
           }
         }
 

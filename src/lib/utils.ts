@@ -9,6 +9,13 @@ export function calculateTotalVolume(sets: { weight: number; reps: number; compl
     .reduce((total, set) => total + set.weight * set.reps, 0);
 }
 
+export function calculateOneRepMax(weight: number, reps: number): number {
+  if (weight <= 0 || reps <= 0 || reps >= 37) return 0;
+  const denominator = 37 - reps;
+  if (denominator <= 0) return 0;
+  return weight * (36 / denominator);
+}
+
 export function calculateVolumeIncrease(currentVolume: number, previousVolume: number): number {
   if (previousVolume === 0) return 0;
   return Math.round(((currentVolume - previousVolume) / previousVolume) * 100);

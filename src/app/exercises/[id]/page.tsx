@@ -90,6 +90,9 @@ export default function ExerciseDetailPage() {
     // Get history data
     console.log('🏋️ ExerciseDetail: Processing', workoutExercises.length, 'workout exercises');
 
+    const allRoutines = await db.routines.toArray();
+    const routineNameMap = new Map(allRoutines.map((routine) => [routine.id!, routine.name]));
+
     const historyData: ExerciseHistory[] = await Promise.all(
       workoutExercises.map(async (we, index) => {
         console.log('🏋️ ExerciseDetail: Processing workout exercise', index + 1, '/', workoutExercises.length, '- ID:', we.id);
@@ -108,11 +111,16 @@ export default function ExerciseDetailPage() {
         const totalVolume = sets.reduce((sum, s) => sum + s.weight * s.reps, 0);
         const maxWeight = sets.length > 0 ? Math.max(...sets.map(s => s.weight)) : 0;
 
+        const routineName = workout?.routineId
+          ? routineNameMap.get(workout.routineId) || 'Unknown Routine'
+          : 'Free Workout';
+
         const historyEntry = {
           date: workout?.date || '',
           sets,
           totalVolume,
-          maxWeight
+          maxWeight,
+          routineName
         };
 
         console.log('🏋️ ExerciseDetail: Created history entry:', {
@@ -531,7 +539,10 @@ export default function ExerciseDetailPage() {
                 className="p-4 rounded-lg bg-white/5 hover:bg-white/8 transition-colors"
               >
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-semibold text-white">{formatDate(entry.date)}</h3>
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-white/50">{entry.routineName}</p>
+                    <h3 className="font-semibold text-white">{formatDate(entry.date)}</h3>
+                  </div>
                   <div className="flex items-center gap-4 text-sm">
                     <span className="text-white/60">
                       Volume: <span className="text-white font-semibold">{entry.totalVolume.toFixed(0)} kg</span>

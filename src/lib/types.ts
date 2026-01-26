@@ -59,6 +59,7 @@ export interface ExerciseHistory {
   sets: Set[];
   totalVolume: number;
   maxWeight: number;
+  routineName: string;
 }
 
 export const MUSCLE_GROUPS = [

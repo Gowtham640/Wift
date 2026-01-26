@@ -82,7 +82,8 @@ export default function ExerciseCard({
       <div className="flex items-start justify-between mb-3 md:mb-4 gap-2">
         <div className="flex-1 min-w-0">
           <h3
-            className="text-lg md:text-xl font-semibold text-blue-400 truncate cursor-pointer hover:text-blue-300 transition-colors"
+            className="text-lg md:text-xl font-semibold text-blue-400 truncate cursor-pointer hover:text-blue-300 transition-colors select-none"
+            onMouseDown={(e) => e.preventDefault()}
             onClick={(e) => {
               e.stopPropagation();
               router.push(`/exercises/${exercise.id}`);

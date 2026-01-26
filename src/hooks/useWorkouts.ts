@@ -208,43 +208,65 @@ export function useWorkout(id: number | null) {
       .equals(id)
       .sortBy('order');
 
-    const calculateHighestOneRm = (sets: Set[]): number =>
-      sets.reduce((maxOneRm, set) => {
-        const oneRm = calculateOneRepMax(set.weight, set.reps);
-        return oneRm > maxOneRm ? oneRm : maxOneRm;
-      }, 0);
+    const previousDataType = settings?.previousDataType || 'routine_best';
 
-    const findBestSetsByOneRm = async (
-      candidateWorkouts: Workout[],
-      targetExerciseId: number
-    ): Promise<Set[]> => {
+    const previousWorkouts = await db.workouts
+      .where('date')
+      .below(workout.date)
+      .toArray();
+
+    const sortedPreviousWorkouts = previousWorkouts.sort(
+      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+    );
+
+    const routineWorkouts = workout.routineId
+      ? sortedPreviousWorkouts.filter((w) => w.routineId === workout.routineId)
+      : [];
+
+    const getCompletedSetsForWorkout = async (targetWorkout: Workout, exerciseId: number): Promise<Set[]> => {
+      if (!targetWorkout.id) return [];
+
+      const prevWe = await db.workout_exercises
+        .where('workoutId')
+        .equals(targetWorkout.id)
+        .and((wex) => wex.exerciseId === exerciseId)
+        .first();
+
+      if (!prevWe?.id) return [];
+
+      return await db.sets
+        .where('workoutExerciseId')
+        .equals(prevWe.id)
+        .and((s) => s.completed)
+        .toArray();
+    };
+
+    const findLatestSets = async (candidates: Workout[], exerciseId: number): Promise<Set[]> => {
+      for (const candidate of candidates) {
+        const sets = await getCompletedSetsForWorkout(candidate, exerciseId);
+        if (sets.length > 0) {
+          return sets;
+        }
+      }
+      return [];
+    };
+
+    const findBestSetsByOneRm = async (candidates: Workout[], exerciseId: number): Promise<Set[]> => {
       let bestOneRm = 0;
       let bestSets: Set[] = [];
 
-      for (const prevWorkout of candidateWorkouts) {
-        if (!prevWorkout.id) continue;
+      for (const candidate of candidates) {
+        const sets = await getCompletedSetsForWorkout(candidate, exerciseId);
+        if (sets.length === 0) continue;
 
-        const prevWe = await db.workout_exercises
-          .where('workoutId')
-          .equals(prevWorkout.id)
-          .and(wex => wex.exerciseId === targetExerciseId)
-          .first();
-
-        if (!prevWe) continue;
-
-        const prevSetsData = await db.sets
-          .where('workoutExerciseId')
-          .equals(prevWe.id!)
-          .and(s => s.completed)
-          .toArray();
-
-        if (prevSetsData.length === 0) continue;
-
-        const highestOneRm = calculateHighestOneRm(prevSetsData);
+        const highestOneRm = sets.reduce((maxOneRm, set) => {
+          const oneRm = calculateOneRepMax(set.weight, set.reps);
+          return oneRm > maxOneRm ? oneRm : maxOneRm;
+        }, 0);
 
         if (highestOneRm > bestOneRm) {
           bestOneRm = highestOneRm;
-          bestSets = prevSetsData;
+          bestSets = sets;
         }
       }
 
@@ -259,79 +281,17 @@ export function useWorkout(id: number | null) {
           .equals(we.id!)
           .toArray();
 
-        // Get previous sets based on settings
+        // Select previous record based on global setting
         let previousSets: Set[] = [];
-        const previousDataType = settings?.previousDataType || 'routine_best';
 
-        if (previousDataType === 'routine_last' || previousDataType === 'routine_best') {
-          // Routine-specific logic
-          const routineWorkouts = await db.workouts
-            .where('date')
-            .below(workout.date)
-            .and(w => w.routineId === workout.routineId)
-            .reverse()
-            .toArray();
-
-          if (previousDataType === 'routine_last') {
-            // Find the most recent workout with this exercise
-            for (const prevWorkout of routineWorkouts) {
-              const prevWe = await db.workout_exercises
-                .where('workoutId')
-                .equals(prevWorkout.id!)
-                .and(wex => wex.exerciseId === we.exerciseId)
-                .first();
-
-              if (prevWe) {
-                const prevSetsData = await db.sets
-                  .where('workoutExerciseId')
-                  .equals(prevWe.id!)
-                  .and(s => s.completed)
-                  .toArray();
-
-                if (prevSetsData.length > 0) {
-                  previousSets = prevSetsData;
-                  break; // Found the most recent workout with this exercise
-                }
-              }
-            }
-          } else {
-            // routine_best: Choose the workout with the highest 1RM for this exercise
-            previousSets = await findBestSetsByOneRm(routineWorkouts, we.exerciseId);
-          }
+        if (previousDataType === 'routine_last') {
+          previousSets = await findLatestSets(routineWorkouts, we.exerciseId);
+        } else if (previousDataType === 'routine_best') {
+          previousSets = await findBestSetsByOneRm(routineWorkouts, we.exerciseId);
+        } else if (previousDataType === 'exercise_last') {
+          previousSets = await findLatestSets(sortedPreviousWorkouts, we.exerciseId);
         } else {
-          // Exercise-wide logic (across all routines)
-          const allPreviousWorkouts = await db.workouts
-            .where('date')
-            .below(workout.date)
-            .reverse()
-            .sortBy('date');
-
-          if (previousDataType === 'exercise_last') {
-            // Find the most recent workout with this exercise
-            for (const prevWorkout of allPreviousWorkouts) {
-              const prevWe = await db.workout_exercises
-                .where('workoutId')
-                .equals(prevWorkout.id!)
-                .and(wex => wex.exerciseId === we.exerciseId)
-                .first();
-
-              if (prevWe) {
-                const prevSetsData = await db.sets
-                  .where('workoutExerciseId')
-                  .equals(prevWe.id!)
-                  .and(s => s.completed)
-                  .toArray();
-
-                if (prevSetsData.length > 0) {
-                  previousSets = prevSetsData;
-                  break; // Found the most recent workout with this exercise
-                }
-              }
-            }
-          } else {
-            // exercise_best: Choose the workout with the highest 1RM for this exercise
-            previousSets = await findBestSetsByOneRm(allPreviousWorkouts, we.exerciseId);
-          }
+          previousSets = await findBestSetsByOneRm(sortedPreviousWorkouts, we.exerciseId);
         }
 
         return {
@@ -357,7 +317,7 @@ export function useWorkout(id: number | null) {
     };
 
     return result;
-  }, [id]);
+  }, [id, settings?.previousDataType]);
 
   const addExerciseToWorkout = async (workoutId: number, exerciseId: number, defaultSets: number = 3) => {
     const existingCount = await db.workout_exercises

@@ -92,22 +92,23 @@ export default function WorkoutHistoryCard({ workout, onEdit, onDelete }: Workou
               </h3>
             </div>
             <div className="flex flex-wrap items-center gap-4 text-sm text-white/60">
-            <div className="flex items-center gap-2">
-              <Calendar size={14} />
-              <span>{formatDate(workout.date)}</span>
+              <div className="flex items-center gap-2">
+                <Calendar size={14} />
+                <span>{formatDate(workout.date)}</span>
+              </div>
+              {isCompleted && duration > 0 && (
+                <div className="flex items-center gap-2">
+                  <Clock size={14} />
+                  <span>{formatDuration(duration)}</span>
+                </div>
+              )}
+              {workoutDetails?.totalVolume && workoutDetails.totalVolume > 0 && (
+                <div className="flex items-center gap-2">
+                  <TrendingUp size={14} />
+                  <span>{workoutDetails.totalVolume.toFixed(0)} kg</span>
+                </div>
+              )}
             </div>
-            {isCompleted && duration > 0 && (
-              <div className="flex items-center gap-2">
-                <Clock size={14} />
-                <span>{formatDuration(duration)}</span>
-              </div>
-            )}
-            {workoutDetails?.totalVolume && workoutDetails.totalVolume > 0 && (
-              <div className="flex items-center gap-2">
-                <TrendingUp size={14} />
-                <span>{workoutDetails.totalVolume.toFixed(0)} kg</span>
-              </div>
-            )}
           </div>
         </div>
         <div className="flex gap-1 ml-2">

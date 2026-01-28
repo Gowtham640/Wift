@@ -87,6 +87,11 @@ export function cn(...classes: (string | undefined | null | false)[]): string {
   return classes.filter(Boolean).join(' ');
 }
 
+export function roundToDecimal(value: number, decimals: number = 1): number {
+  const factor = Math.pow(10, decimals);
+  return Math.round(value * factor) / factor;
+}
+
 // Convert timestamp to IST (Indian Standard Time)
 export function toIST(timestamp: number): Date {
   // Create date in UTC

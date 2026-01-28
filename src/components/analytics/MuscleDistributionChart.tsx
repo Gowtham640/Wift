@@ -13,16 +13,26 @@ import {
 import { Radar } from 'react-chartjs-2';
 import GlassWidget from '@/components/ui/GlassWidget';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db } from '@/lib/db';
+import { db, type Exercise } from '@/lib/db';
 import { TimePeriod, getDateRangeForPeriod } from './TimeFilter';
 import type { MuscleGroupVolume } from '@/lib/types';
-import { getLocalDateString } from '@/lib/utils';
+import { getLocalDateString, roundToDecimal } from '@/lib/utils';
 
 ChartJS.register(RadialLinearScale, PointElement, LineElement, Filler, Title, Tooltip, Legend);
 
 interface MuscleDistributionChartProps {
   timePeriod: TimePeriod;
 }
+
+const getPrimaryMuscleGroup = (exercise?: Exercise): string => {
+  const rawGroup = exercise?.muscleGroup || exercise?.subMuscleGroup;
+  if (!rawGroup) {
+    return 'Unknown';
+  }
+
+  const parts = rawGroup.split(/[,•/\\|]+/).map(part => part.trim()).filter(Boolean);
+  return parts[0] || 'Unknown';
+};
 
 export default function MuscleDistributionChart({
   timePeriod
@@ -35,7 +45,6 @@ export default function MuscleDistributionChart({
   const muscleData = useLiveQuery(async () => {
     const { startDate, endDate } = getDateRangeForPeriod(timePeriod);
 
-    // Get all workouts first, then filter by date and completion
     const allWorkouts = await db.workouts.toArray();
 
     const workouts = allWorkouts.filter(workout =>
@@ -44,7 +53,7 @@ export default function MuscleDistributionChart({
       workout.date <= getLocalDateString(endDate)
     );
 
-    const muscleVolumes: { [key: string]: number } = {};
+    const muscleVolumes = new Map<string, number>();
 
     for (const workout of workouts) {
       const workoutExercises = await db.workout_exercises
@@ -56,28 +65,31 @@ export default function MuscleDistributionChart({
         const exercise = await db.exercises.get(we.exerciseId);
         if (!exercise) continue;
 
+        const muscleKey = getPrimaryMuscleGroup(exercise);
+
         const sets = await db.sets
           .where('workoutExerciseId')
           .equals(we.id!)
           .filter(s => s.completed)
           .toArray();
 
-        const volume = sets.reduce((sum, s) => sum + s.weight * s.reps, 0);
+        if (sets.length === 0) continue;
 
-        if (!muscleVolumes[exercise.muscleGroup]) {
-          muscleVolumes[exercise.muscleGroup] = 0;
-        }
-        muscleVolumes[exercise.muscleGroup] += volume;
+        const volume = roundToDecimal(sets.reduce((sum, s) => sum + s.weight * s.reps, 0));
+        const existing = muscleVolumes.get(muscleKey) ?? 0;
+        muscleVolumes.set(muscleKey, roundToDecimal(existing + volume));
       }
     }
 
-    return Object.entries(muscleVolumes).map(([muscle, volume]) => ({
+    return Array.from(muscleVolumes.entries()).map(([muscle, volume]) => ({
       muscle,
       volume
     }));
   }, [timePeriod, deletionTracker]);
 
   const sortedData = [...(muscleData || [])].sort((a, b) => b.volume - a.volume);
+  const totalVolume = sortedData.reduce((sum, item) => sum + item.volume, 0);
+  const topMuscles = sortedData.slice(0, 6);
 
   const data = {
     labels: sortedData.map(d => d.muscle),
@@ -136,29 +148,35 @@ export default function MuscleDistributionChart({
     <GlassWidget widgetId="analytics-muscle-distribution" showGlow allowColorChange className="p-4 md:p-6">
       <h2 className="text-lg md:text-xl font-bold text-white mb-4 md:mb-6">Muscle Volume</h2>
 
-      <div className="h-[350px]">
-        {sortedData && sortedData.length > 0 ? (
-          <Radar data={data} options={options} />
-        ) : (
-          <div className="h-full flex items-center justify-center">
-            <div className="text-center">
-              <p className="text-white/40 mb-2">No muscle data available</p>
-              <p className="text-white/60 text-sm">Complete some workouts to see volume distribution</p>
+        <div className="h-[350px]">
+          {sortedData && sortedData.length > 0 ? (
+            <Radar data={data} options={options} />
+          ) : (
+            <div className="h-full flex items-center justify-center">
+              <div className="text-center">
+                <p className="text-white/40 mb-2">No muscle data available</p>
+                <p className="text-white/60 text-sm">Complete some workouts to see volume distribution</p>
+              </div>
             </div>
+          )}
+        </div>
+
+        {topMuscles.length > 0 && (
+          <div className="mt-4 space-y-2">
+            {topMuscles.map((item) => {
+              const percentage = totalVolume > 0 ? (item.volume / totalVolume) * 100 : 0;
+              return (
+                <div key={item.muscle} className="flex items-center justify-between rounded bg-white/5 px-3 py-2">
+                  <div>
+                    <p className="text-sm text-white">{item.muscle}</p>
+                    <p className="text-xs text-white/50">{percentage.toFixed(1)}% of total</p>
+                  </div>
+                  <span className="text-sm text-white/60">{item.volume.toFixed(0)} kg</span>
+                </div>
+              );
+            })}
           </div>
         )}
-      </div>
-
-      {sortedData && sortedData.length > 0 && (
-        <div className="mt-4 grid grid-cols-2 gap-2">
-          {sortedData.slice(0, 6).map((item) => (
-            <div key={item.muscle} className="flex items-center justify-between p-2 rounded bg-white/5">
-              <span className="text-sm text-white/80">{item.muscle}</span>
-              <span className="text-sm text-white/60">{item.volume.toFixed(0)}kg</span>
-            </div>
-          ))}
-        </div>
-      )}
     </GlassWidget>
   );
 }

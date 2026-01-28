@@ -34,7 +34,6 @@ export default function MuscleSetsChart({
   const muscleData = useLiveQuery(async () => {
     const { startDate, endDate } = getDateRangeForPeriod(timePeriod);
 
-    // Get all workouts first, then filter by date and completion
     const allWorkouts = await db.workouts.toArray();
 
     const workouts = allWorkouts.filter(workout =>
@@ -61,32 +60,30 @@ export default function MuscleSetsChart({
           .and(s => s.completed)
           .toArray();
 
-        // Count sets instead of volume
         const setCount = sets.length;
+        if (setCount === 0) continue;
 
-        if (!muscleSets[exercise.muscleGroup]) {
-          muscleSets[exercise.muscleGroup] = 0;
-        }
-        muscleSets[exercise.muscleGroup] += setCount;
+        const muscleKey = exercise.muscleGroup || 'Unknown';
+        muscleSets[muscleKey] = (muscleSets[muscleKey] || 0) + setCount;
       }
     }
 
-    // Convert to chart data format
-    const labels = Object.keys(muscleSets);
-    const data = Object.values(muscleSets);
+    const entries = Object.entries(muscleSets)
+      .map(([muscle, sets]) => ({ muscle, sets }))
+      .sort((a, b) => b.sets - a.sets);
 
-    // Calculate percentages for better visualization
-    const totalSets = data.reduce((sum, value) => sum + value, 0);
-    const percentages = data.map(value => totalSets > 0 ? (value / totalSets) * 100 : 0);
+    const totalSets = entries.reduce((sum, entry) => sum + entry.sets, 0);
 
     return {
-      labels,
-      data: percentages,
-      rawData: data
+      entries: entries.map(entry => ({
+        ...entry,
+        percentage: totalSets > 0 ? (entry.sets / totalSets) * 100 : 0
+      })),
+      totalSets
     };
   }, [timePeriod, deletionTracker]);
 
-  if (!muscleData || muscleData.labels.length === 0) {
+  if (!muscleData || muscleData.entries.length === 0) {
     return (
       <GlassWidget widgetId="analytics-muscle-sets" showGlow allowColorChange className="p-4 md:p-6">
         <h2 className="text-lg md:text-xl font-bold text-white mb-4 md:mb-6">Set Distribution</h2>
@@ -103,11 +100,11 @@ export default function MuscleSetsChart({
   }
 
   const data = {
-    labels: muscleData.labels,
+    labels: muscleData.entries.map(entry => entry.muscle),
     datasets: [
       {
         label: 'Set Distribution (%)',
-        data: muscleData.data,
+        data: muscleData.entries.map(entry => entry.percentage),
         backgroundColor: 'rgba(168, 85, 247, 0.2)',
         borderColor: 'rgba(168, 85, 247, 1)',
         borderWidth: 2,
@@ -131,7 +128,8 @@ export default function MuscleSetsChart({
           label: function(context: any) {
             const label = context.label || '';
             const percentage = context.parsed.r || 0;
-            const rawValue = muscleData.rawData[context.dataIndex] || 0;
+            const entry = muscleData.entries[context.dataIndex];
+            const rawValue = entry ? entry.sets : 0;
             return `${label}: ${rawValue} sets (${percentage.toFixed(1)}%)`;
           },
         },
@@ -165,10 +163,22 @@ export default function MuscleSetsChart({
       <div className="h-[250px] mb-4">
         <Radar data={data} options={options} />
       </div>
-      <div className="text-center">
-        <p className="text-sm text-white/60">
-          {muscleData.rawData.reduce((sum, value) => sum + value, 0)} total sets
-        </p>
+      <div className="text-sm text-white/60 mb-3 text-center">
+        {muscleData.totalSets} total sets
+      </div>
+      <div className="space-y-2">
+        {muscleData.entries.slice(0, 6).map(entry => (
+          <div
+            key={entry.muscle}
+            className="flex items-center justify-between rounded bg-white/5 px-3 py-2"
+          >
+            <div>
+              <p className="text-sm text-white">{entry.muscle}</p>
+              <p className="text-xs text-white/50">{entry.percentage.toFixed(1)}% of sets</p>
+            </div>
+            <span className="text-sm text-white/60">{entry.sets} sets</span>
+          </div>
+        ))}
       </div>
     </GlassWidget>
   );

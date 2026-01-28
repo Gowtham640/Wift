@@ -16,7 +16,7 @@ import { TimePeriod, getDateRangeForPeriod } from './TimeFilter';
 import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type WeightEntry } from '@/lib/db';
-import { getLocalDateString, getISTDateString, getISTTimestamp } from '@/lib/utils';
+import { getLocalDateString, getISTDateString, getISTTimestamp, roundToDecimal } from '@/lib/utils';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
 import { Plus, TrendingUp, TrendingDown, ChevronDown, ChevronUp, Edit3, Trash2 } from 'lucide-react';
@@ -38,16 +38,16 @@ export default function WeightChart({ timePeriod }: WeightChartProps) {
   const [showAddForm, setShowAddForm] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const { updateProfile } = useProfile();
-const [recordsExpanded, setRecordsExpanded] = useState(false);
-const [editingEntryId, setEditingEntryId] = useState<number | null>(null);
-const [editingWeight, setEditingWeight] = useState('');
+  const [recordsExpanded, setRecordsExpanded] = useState(false);
+  const [editingEntryId, setEditingEntryId] = useState<number | null>(null);
+  const [editingWeight, setEditingWeight] = useState('');
 
-const allWeightEntries = useLiveQuery(async () => {
-  return await db.weight_entries
-    .orderBy('createdAt')
-    .reverse()
-    .toArray();
-}, [refreshTrigger]);
+  const allWeightEntries = useLiveQuery(async () => {
+    return await db.weight_entries
+      .orderBy('createdAt')
+      .reverse()
+      .toArray();
+  }, [refreshTrigger]);
 
   // Debug function for weight entries
   if (typeof window !== 'undefined') {
@@ -90,14 +90,14 @@ const allWeightEntries = useLiveQuery(async () => {
         await db.weight_entries.delete(testId);
         console.log('🧪 Cleaned up test entry');
 
-    } catch (error) {
-      console.error('❌ Weight debug failed:', error);
-      const errorDetails = error instanceof Error ? {
-        message: error.message,
-        stack: error.stack
-      } : { error: String(error) };
-      console.error('❌ Error details:', errorDetails);
-    }
+      } catch (error) {
+        console.error('❌ Weight debug failed:', error);
+        const errorDetails = error instanceof Error ? {
+          message: error.message,
+          stack: error.stack
+        } : { error: String(error) };
+        console.error('❌ Error details:', errorDetails);
+      }
     };
   }
 
@@ -120,13 +120,14 @@ const allWeightEntries = useLiveQuery(async () => {
   }, [timePeriod, refreshTrigger]);
 
   const addWeightEntry = async () => {
-    const weight = parseFloat(newWeight);
+    const parsed = parseFloat(newWeight);
+    const weight = roundToDecimal(parsed);
     if (isNaN(weight) || weight <= 0) return;
 
     try {
       // Add to weight_entries for analytics tracking
       const result = await db.weight_entries.add({
-        weight: weight,
+        weight,
         date: getISTDateString(),
         createdAt: getISTTimestamp()
       });
@@ -148,7 +149,7 @@ const allWeightEntries = useLiveQuery(async () => {
   const startEditingEntry = (entry: WeightEntry) => {
     if (!entry.id) return;
     setEditingEntryId(entry.id);
-    setEditingWeight(entry.weight.toFixed(1));
+    setEditingWeight(roundToDecimal(entry.weight).toFixed(1));
   };
 
   const cancelEditing = () => {
@@ -159,10 +160,11 @@ const allWeightEntries = useLiveQuery(async () => {
   const saveEditedEntry = async () => {
     if (!editingEntryId) return;
     const parsed = parseFloat(editingWeight);
-    if (isNaN(parsed) || parsed <= 0) return;
+    const normalized = roundToDecimal(parsed);
+    if (isNaN(normalized) || normalized <= 0) return;
 
     await db.weight_entries.update(editingEntryId, {
-      weight: parsed
+      weight: normalized
     });
 
     setEditingEntryId(null);
@@ -190,7 +192,7 @@ const allWeightEntries = useLiveQuery(async () => {
     : null;
 
   const weightChange = currentWeight && startingWeight
-    ? currentWeight - startingWeight
+    ? roundToDecimal(currentWeight - startingWeight)
     : 0;
 
   const data = {
@@ -234,7 +236,7 @@ const allWeightEntries = useLiveQuery(async () => {
         borderWidth: 1,
         padding: 12,
         callbacks: {
-          title: function(context: any) {
+          title: function (context: any) {
             const index = context[0].dataIndex;
             const weightDataPoint = weightData?.[index];
             if (weightDataPoint) {
@@ -248,8 +250,8 @@ const allWeightEntries = useLiveQuery(async () => {
             }
             return '';
           },
-          label: function(context: any) {
-            return `Weight: ${context.parsed.y} kg`;
+          label: function (context: any) {
+            return `Weight: ${Number(context.parsed.y).toFixed(1)} kg`;
           }
         }
       }
@@ -262,7 +264,7 @@ const allWeightEntries = useLiveQuery(async () => {
         },
         ticks: {
           color: 'rgba(255, 255, 255, 0.6)',
-          callback: function(value: any) {
+          callback: function (value: any) {
             return value + ' kg';
           }
         }

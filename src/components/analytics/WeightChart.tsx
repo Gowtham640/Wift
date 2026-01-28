@@ -183,12 +183,17 @@ export default function WeightChart({ timePeriod }: WeightChartProps) {
     setRefreshTrigger((prev) => prev + 1);
   };
 
-  const currentWeight = weightData && weightData.length > 0
-    ? weightData[weightData.length - 1].weight
+  const normalizedWeightData = weightData?.map((entry) => ({
+    ...entry,
+    weight: roundToDecimal(entry.weight)
+  })) ?? [];
+
+  const currentWeight = normalizedWeightData.length > 0
+    ? normalizedWeightData[normalizedWeightData.length - 1].weight
     : null;
 
-  const startingWeight = weightData && weightData.length > 0
-    ? weightData[0].weight
+  const startingWeight = normalizedWeightData.length > 0
+    ? normalizedWeightData[0].weight
     : null;
 
   const weightChange = currentWeight && startingWeight
@@ -196,7 +201,7 @@ export default function WeightChart({ timePeriod }: WeightChartProps) {
     : 0;
 
   const data = {
-    labels: weightData?.map(d => {
+    labels: normalizedWeightData.map(d => {
       const date = new Date(d.date);
       return date.toLocaleDateString('en-US', {
         month: 'short',
@@ -206,7 +211,7 @@ export default function WeightChart({ timePeriod }: WeightChartProps) {
     datasets: [
       {
         label: 'Weight (kg)',
-        data: weightData?.map(d => d.weight) || [],
+        data: normalizedWeightData.map(d => d.weight),
         borderColor: 'rgba(255, 255, 255, 1)',
         backgroundColor: 'rgba(255, 255, 255, 0.1)',
         borderWidth: 3,
@@ -238,7 +243,7 @@ export default function WeightChart({ timePeriod }: WeightChartProps) {
         callbacks: {
           title: function (context: any) {
             const index = context[0].dataIndex;
-            const weightDataPoint = weightData?.[index];
+            const weightDataPoint = normalizedWeightData[index];
             if (weightDataPoint) {
               const date = new Date(weightDataPoint.date);
               return date.toLocaleDateString('en-US', {

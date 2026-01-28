@@ -148,7 +148,7 @@ const allWeightEntries = useLiveQuery(async () => {
   const startEditingEntry = (entry: WeightEntry) => {
     if (!entry.id) return;
     setEditingEntryId(entry.id);
-    setEditingWeight(entry.weight.toString());
+    setEditingWeight(entry.weight.toFixed(1));
   };
 
   const cancelEditing = () => {

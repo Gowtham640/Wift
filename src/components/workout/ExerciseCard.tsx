@@ -1,15 +1,29 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLiveQuery } from 'dexie-react-hooks';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend
+} from 'chart.js';
+import { Line } from 'react-chartjs-2';
 import { ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react';
 import GlassWidget from '@/components/ui/GlassWidget';
 import SetRow from './SetRow';
 import VolumeIndicator from './VolumeIndicator';
 import { useSets } from '@/hooks/useWorkouts';
 import { type Exercise, type Set, db } from '@/lib/db';
-import { calculateTotalVolume, calculateVolumeIncrease } from '@/lib/utils';
+import { ExerciseHistory } from '@/lib/types';
+import { calculateTotalVolume, calculateVolumeIncrease, formatDate } from '@/lib/utils';
+
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend);
 
 interface ExerciseCardProps {
   workoutExerciseId: number;
@@ -52,34 +66,28 @@ export default function ExerciseCard({
 
   const currentVolume = sets ? calculateTotalVolume(sets) : 0;
   const volumeIncrease = calculateVolumeIncrease(currentVolume, previousVolume);
-  const setVolumes = sets?.map((set) => set.weight * set.reps) ?? [];
-  const maxSetVolume = setVolumes.length > 0 ? Math.max(1, ...setVolumes) : 1;
 
-  interface ExerciseHistoryRecord {
-    workoutId: number;
-    date: string;
-    volume: number;
-    topWeight: number;
-    totalReps: number;
-  }
-
-  const lastRecords = useLiveQuery(async () => {
-    if (!exercise.id) return [];
+  const lastRecords = useLiveQuery<ExerciseHistory[]>(async () => {
+    if (!exercise?.id) return [];
 
     const currentWorkoutExercise = await db.workout_exercises.get(workoutExerciseId);
     const currentWorkoutId = currentWorkoutExercise?.workoutId;
+
+    const routineNameMap = new Map(
+      (await db.routines.toArray()).map((routine) => [routine.id!, routine.name])
+    );
 
     const relatedExercises = await db.workout_exercises
       .where('exerciseId')
       .equals(exercise.id)
       .toArray();
 
-    const history: ExerciseHistoryRecord[] = [];
+    const history: ExerciseHistory[] = [];
 
     for (const related of relatedExercises) {
       if (!related.id || related.workoutId === currentWorkoutId) continue;
       const workout = await db.workouts.get(related.workoutId);
-      if (!workout) continue;
+      if (!workout || !workout.endTime) continue;
       const completedSets = await db.sets
         .where('workoutExerciseId')
         .equals(related.id)
@@ -87,23 +95,102 @@ export default function ExerciseCard({
         .toArray();
       if (completedSets.length === 0) continue;
 
-      const volume = completedSets.reduce((sum, set) => sum + set.weight * set.reps, 0);
-      const topWeight = Math.max(...completedSets.map((set) => set.weight));
-      const totalReps = completedSets.reduce((sum, set) => sum + set.reps, 0);
+      const totalVolume = completedSets.reduce((sum, set) => sum + set.weight * set.reps, 0);
+      const maxWeight = completedSets.reduce((max, set) => Math.max(max, set.weight), 0);
 
       history.push({
-        workoutId: related.workoutId,
         date: workout.date,
-        volume,
-        topWeight,
-        totalReps
+        sets: completedSets,
+        totalVolume,
+        maxWeight,
+        routineName: workout.routineId
+          ? routineNameMap.get(workout.routineId) || 'Unknown Routine'
+          : 'Free Workout'
       });
     }
 
     return history
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
       .slice(0, 3);
-  }, [exercise.id, workoutExerciseId]);
+  }, [exercise?.id, workoutExerciseId]);
+
+  const sortedRecordsForChart = useMemo(() => {
+    if (!lastRecords) return [];
+    return [...lastRecords].sort((a, b) => a.date.localeCompare(b.date));
+  }, [lastRecords]);
+
+  const volumeChartData = useMemo(
+    () => ({
+      labels: sortedRecordsForChart.map((_, index) => (index + 1).toString()),
+      datasets: [
+        {
+          label: 'Volume (kg)',
+          data: sortedRecordsForChart.map((record) => record.totalVolume),
+          borderColor: 'rgba(59, 130, 246, 1)',
+          backgroundColor: 'rgba(59, 130, 246, 0.2)',
+          borderWidth: 3,
+          fill: true,
+          tension: 0.4,
+          pointBackgroundColor: 'rgba(59, 130, 246, 1)',
+          pointBorderColor: 'rgba(255, 255, 255, 0.8)',
+          pointBorderWidth: 2,
+          pointRadius: 4,
+          pointHoverRadius: 6
+        }
+      ]
+    }),
+    [sortedRecordsForChart]
+  );
+
+  const volumeChartOptions = useMemo(
+    () => ({
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: false
+        },
+        tooltip: {
+          backgroundColor: 'rgba(0, 0, 0, 0.8)',
+          titleColor: 'rgba(255, 255, 255, 1)',
+          bodyColor: 'rgba(255, 255, 255, 0.8)',
+          borderColor: 'rgba(255, 255, 255, 0.1)',
+          borderWidth: 1,
+          padding: 12,
+          callbacks: {
+            title: function (context: any) {
+              const dataIndex = context[0].dataIndex;
+              const record = sortedRecordsForChart[dataIndex];
+              return record ? formatDate(record.date) : '';
+            },
+            label: function (context: any) {
+              return `${context.dataset.label}: ${context.parsed.y.toFixed(0)} kg`;
+            }
+          }
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          grid: { color: 'rgba(255, 255, 255, 0.05)' },
+          ticks: {
+            color: 'rgba(255, 255, 255, 0.6)'
+          }
+        },
+        x: {
+          grid: { display: false },
+          ticks: {
+            color: 'rgba(255, 255, 255, 0.6)'
+          }
+        }
+      },
+      interaction: {
+        intersect: false,
+        mode: 'index' as const
+      }
+    }),
+    [sortedRecordsForChart]
+  );
 
   useEffect(() => {
     if (sets && sets.length > 0) {
@@ -223,65 +310,77 @@ export default function ExerciseCard({
         <div className="mt-4 space-y-4">
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <h4 className="text-sm uppercase tracking-wide text-white/60">Volume chart</h4>
-              <span className="text-xs text-white/50">per set</span>
+              <h4 className="text-sm uppercase tracking-wide text-white/60">Volume history</h4>
+              <span className="text-xs text-white/50">previous workouts</span>
             </div>
-            {sets && sets.length > 0 ? (
-              <div className="space-y-2">
-                {sets.map((set, index) => {
-                  const volume = setVolumes[index] ?? 0;
-                  const barWidth = maxSetVolume > 0 ? Math.min(100, (volume / maxSetVolume) * 100) : 0;
-                  return (
-                    <div key={set.id} className="flex items-center gap-3">
-                      <span className="text-xs text-white/60 w-12 text-right">Set {index + 1}</span>
-                      <div className="flex-1 h-2 bg-white/10 rounded-full overflow-hidden">
-                        <div
-                          className="h-full rounded-full bg-gradient-to-r from-blue-500 to-blue-300"
-                          style={{ width: `${barWidth}%` }}
-                        />
-                      </div>
-                      <span className="text-xs text-white/70 w-14 text-right">{volume.toFixed(1)} kg</span>
-                    </div>
-                  );
-                })}
+            {lastRecords && lastRecords.length > 0 ? (
+              <div className="h-[200px]">
+                <Line data={volumeChartData} options={volumeChartOptions} />
               </div>
             ) : (
-              <p className="text-xs text-white/50">Log your sets to see the volume trend.</p>
+              <p className="text-xs text-white/50">No completed history yet.</p>
             )}
           </div>
 
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <h4 className="text-sm uppercase tracking-wide text-white/60">Last 3 records</h4>
-              <span className="text-xs text-white/50">previous workouts</span>
+              <span className="text-xs text-white/50">exercise history</span>
             </div>
             {lastRecords === undefined ? (
               <p className="text-xs text-white/50">Loading previous workouts...</p>
             ) : lastRecords.length === 0 ? (
               <p className="text-xs text-white/50">No completed records yet for this exercise.</p>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {lastRecords.map((record) => (
                   <div
-                    key={`${record.workoutId}-${record.date}`}
-                    className="flex items-center justify-between bg-white/5 rounded-lg px-3 py-2"
+                    key={`${record.date}-${record.routineName}`}
+                    className="space-y-3 rounded-xl border border-white/10 bg-white/5 p-3"
                   >
-                    <div>
-                      <p
-                        className="text-sm text-white"
-                        onMouseDown={(e) => e.preventDefault()}
-                      >
-                        {new Date(record.date).toLocaleDateString('en-US', {
-                          month: 'short',
-                          day: 'numeric',
-                          year: 'numeric'
-                        })}
-                      </p>
-                      <p className="text-xs text-white/60">
-                        Top weight {record.topWeight.toFixed(1)} kg • {record.totalReps} reps
-                      </p>
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <p
+                          className="text-xs uppercase tracking-wide text-white/50"
+                          onMouseDown={(e) => e.preventDefault()}
+                        >
+                          {record.routineName}
+                        </p>
+                        <h3 className="text-sm font-semibold text-white">{formatDate(record.date)}</h3>
+                      </div>
+                      <div className="text-right text-xs text-white/60 space-y-1">
+                        <div>
+                          Volume:{' '}
+                          <span className="font-semibold text-white">
+                            {record.totalVolume.toFixed(0)} kg
+                          </span>
+                        </div>
+                        <div>
+                          Max:{' '}
+                          <span className="font-semibold text-white">
+                            {record.maxWeight.toFixed(1)} kg
+                          </span>
+                        </div>
+                        <div>
+                          Sets:{' '}
+                          <span className="font-semibold text-white">{record.sets.length}</span>
+                        </div>
+                      </div>
                     </div>
-                    <p className="text-sm font-semibold text-white">{record.volume.toFixed(0)} kg</p>
+
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                      {record.sets.map((set, setIndex) => (
+                        <div
+                          key={set.id ?? `${record.date}-${setIndex}`}
+                          className="rounded-lg bg-white/10 p-2 text-center"
+                        >
+                          <p className="text-xs text-white/40 mb-1">Set {setIndex + 1}</p>
+                          <p className="text-sm font-semibold text-white">
+                            {set.weight.toFixed(1)}kg × {set.reps}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 ))}
               </div>

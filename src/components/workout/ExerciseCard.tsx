@@ -2,12 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Trash2 } from 'lucide-react';
+import { useLiveQuery } from 'dexie-react-hooks';
+import { ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react';
 import GlassWidget from '@/components/ui/GlassWidget';
 import SetRow from './SetRow';
 import VolumeIndicator from './VolumeIndicator';
 import { useSets } from '@/hooks/useWorkouts';
-import { type Exercise, type Set } from '@/lib/db';
+import { type Exercise, type Set, db } from '@/lib/db';
 import { calculateTotalVolume, calculateVolumeIncrease } from '@/lib/utils';
 
 interface ExerciseCardProps {
@@ -26,6 +27,7 @@ export default function ExerciseCard({
   const router = useRouter();
   const { sets, addSet, updateSet, deleteSet } = useSets(workoutExerciseId);
   const [deleteMode, setDeleteMode] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   // Shared values for cascading updates - use the first set's values as defaults
   const [sharedWeight, setSharedWeight] = useState<number | undefined>(previousSets?.[0]?.weight);
@@ -50,6 +52,58 @@ export default function ExerciseCard({
 
   const currentVolume = sets ? calculateTotalVolume(sets) : 0;
   const volumeIncrease = calculateVolumeIncrease(currentVolume, previousVolume);
+  const setVolumes = sets?.map((set) => set.weight * set.reps) ?? [];
+  const maxSetVolume = setVolumes.length > 0 ? Math.max(1, ...setVolumes) : 1;
+
+  interface ExerciseHistoryRecord {
+    workoutId: number;
+    date: string;
+    volume: number;
+    topWeight: number;
+    totalReps: number;
+  }
+
+  const lastRecords = useLiveQuery(async () => {
+    if (!exercise.id) return [];
+
+    const currentWorkoutExercise = await db.workout_exercises.get(workoutExerciseId);
+    const currentWorkoutId = currentWorkoutExercise?.workoutId;
+
+    const relatedExercises = await db.workout_exercises
+      .where('exerciseId')
+      .equals(exercise.id)
+      .toArray();
+
+    const history: ExerciseHistoryRecord[] = [];
+
+    for (const related of relatedExercises) {
+      if (!related.id || related.workoutId === currentWorkoutId) continue;
+      const workout = await db.workouts.get(related.workoutId);
+      if (!workout) continue;
+      const completedSets = await db.sets
+        .where('workoutExerciseId')
+        .equals(related.id)
+        .and((set) => set.completed)
+        .toArray();
+      if (completedSets.length === 0) continue;
+
+      const volume = completedSets.reduce((sum, set) => sum + set.weight * set.reps, 0);
+      const topWeight = Math.max(...completedSets.map((set) => set.weight));
+      const totalReps = completedSets.reduce((sum, set) => sum + set.reps, 0);
+
+      history.push({
+        workoutId: related.workoutId,
+        date: workout.date,
+        volume,
+        topWeight,
+        totalReps
+      });
+    }
+
+    return history
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .slice(0, 3);
+  }, [exercise.id, workoutExerciseId]);
 
   useEffect(() => {
     if (sets && sets.length > 0) {
@@ -93,7 +147,18 @@ export default function ExerciseCard({
           </h3>
           <p className="text-xs md:text-sm text-white/60">{exercise.muscleGroup}</p>
         </div>
-        <VolumeIndicator percentage={volumeIncrease} />
+        <div className="flex flex-col items-end gap-2">
+          <VolumeIndicator percentage={volumeIncrease} />
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => setIsExpanded((prev) => !prev)}
+            className="flex items-center gap-1 text-xs text-white/70 hover:text-white focus:outline-none"
+          >
+            {isExpanded ? 'Hide details' : 'Show details'}
+            {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+          </button>
+        </div>
       </div>
 
       <div className="space-y-2 md:space-y-2">
@@ -144,9 +209,8 @@ export default function ExerciseCard({
           {sets && sets.length > 1 && (
             <button
               onClick={() => setDeleteMode(!deleteMode)}
-              className={`flex-1 btn py-2 md:py-3 text-sm ${
-                deleteMode ? 'btn-danger' : 'btn-secondary'
-              }`}
+              className={`flex-1 btn py-2 md:py-3 text-sm ${deleteMode ? 'btn-danger' : 'btn-secondary'
+                }`}
             >
               <Trash2 size={16} />
               {deleteMode ? 'Done' : 'Remove'}
@@ -154,6 +218,77 @@ export default function ExerciseCard({
           )}
         </div>
       </div>
+
+      {isExpanded && (
+        <div className="mt-4 space-y-4">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <h4 className="text-sm uppercase tracking-wide text-white/60">Volume chart</h4>
+              <span className="text-xs text-white/50">per set</span>
+            </div>
+            {sets && sets.length > 0 ? (
+              <div className="space-y-2">
+                {sets.map((set, index) => {
+                  const volume = setVolumes[index] ?? 0;
+                  const barWidth = maxSetVolume > 0 ? Math.min(100, (volume / maxSetVolume) * 100) : 0;
+                  return (
+                    <div key={set.id} className="flex items-center gap-3">
+                      <span className="text-xs text-white/60 w-12 text-right">Set {index + 1}</span>
+                      <div className="flex-1 h-2 bg-white/10 rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-blue-500 to-blue-300"
+                          style={{ width: `${barWidth}%` }}
+                        />
+                      </div>
+                      <span className="text-xs text-white/70 w-14 text-right">{volume.toFixed(1)} kg</span>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-xs text-white/50">Log your sets to see the volume trend.</p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <h4 className="text-sm uppercase tracking-wide text-white/60">Last 3 records</h4>
+              <span className="text-xs text-white/50">previous workouts</span>
+            </div>
+            {lastRecords === undefined ? (
+              <p className="text-xs text-white/50">Loading previous workouts...</p>
+            ) : lastRecords.length === 0 ? (
+              <p className="text-xs text-white/50">No completed records yet for this exercise.</p>
+            ) : (
+              <div className="space-y-2">
+                {lastRecords.map((record) => (
+                  <div
+                    key={`${record.workoutId}-${record.date}`}
+                    className="flex items-center justify-between bg-white/5 rounded-lg px-3 py-2"
+                  >
+                    <div>
+                      <p
+                        className="text-sm text-white"
+                        onMouseDown={(e) => e.preventDefault()}
+                      >
+                        {new Date(record.date).toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric'
+                        })}
+                      </p>
+                      <p className="text-xs text-white/60">
+                        Top weight {record.topWeight.toFixed(1)} kg • {record.totalReps} reps
+                      </p>
+                    </div>
+                    <p className="text-sm font-semibold text-white">{record.volume.toFixed(0)} kg</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="mt-3 md:mt-4 pt-3 md:pt-4 border-t border-white/10">
         <div className="flex justify-between text-xs md:text-sm">

@@ -15,11 +15,11 @@ import GlassWidget from '@/components/ui/GlassWidget';
 import { TimePeriod, getDateRangeForPeriod } from './TimeFilter';
 import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db } from '@/lib/db';
+import { db, type WeightEntry } from '@/lib/db';
 import { getLocalDateString, getISTDateString, getISTTimestamp } from '@/lib/utils';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
-import { Plus, TrendingUp, TrendingDown } from 'lucide-react';
+import { Plus, TrendingUp, TrendingDown, ChevronDown, ChevronUp, Edit3, Trash2 } from 'lucide-react';
 import { useProfile } from '@/hooks/useProfile';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend);
@@ -38,6 +38,16 @@ export default function WeightChart({ timePeriod }: WeightChartProps) {
   const [showAddForm, setShowAddForm] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const { updateProfile } = useProfile();
+const [recordsExpanded, setRecordsExpanded] = useState(false);
+const [editingEntryId, setEditingEntryId] = useState<number | null>(null);
+const [editingWeight, setEditingWeight] = useState('');
+
+const allWeightEntries = useLiveQuery(async () => {
+  return await db.weight_entries
+    .orderBy('createdAt')
+    .reverse()
+    .toArray();
+}, [refreshTrigger]);
 
   // Debug function for weight entries
   if (typeof window !== 'undefined') {
@@ -133,6 +143,42 @@ export default function WeightChart({ timePeriod }: WeightChartProps) {
     } catch (error) {
       console.error('Failed to add weight entry:', error);
     }
+  };
+
+  const startEditingEntry = (entry: WeightEntry) => {
+    if (!entry.id) return;
+    setEditingEntryId(entry.id);
+    setEditingWeight(entry.weight.toString());
+  };
+
+  const cancelEditing = () => {
+    setEditingEntryId(null);
+    setEditingWeight('');
+  };
+
+  const saveEditedEntry = async () => {
+    if (!editingEntryId) return;
+    const parsed = parseFloat(editingWeight);
+    if (isNaN(parsed) || parsed <= 0) return;
+
+    await db.weight_entries.update(editingEntryId, {
+      weight: parsed
+    });
+
+    setEditingEntryId(null);
+    setEditingWeight('');
+    setRefreshTrigger((prev) => prev + 1);
+  };
+
+  const handleDeleteEntry = async (entryId?: number) => {
+    if (!entryId) return;
+    await db.weight_entries.delete(entryId);
+
+    if (editingEntryId === entryId) {
+      cancelEditing();
+    }
+
+    setRefreshTrigger((prev) => prev + 1);
   };
 
   const currentWeight = weightData && weightData.length > 0
@@ -315,6 +361,102 @@ export default function WeightChart({ timePeriod }: WeightChartProps) {
           </Button>
         </div>
       )}
+
+      <div className="mt-6 border-t border-white/10 pt-4 space-y-3">
+        <button
+          type="button"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => setRecordsExpanded((prev) => !prev)}
+          className="flex items-center justify-between w-full text-sm text-white/80 hover:text-white transition-colors focus:outline-none"
+        >
+          <span>{recordsExpanded ? 'Hide weight records' : 'Manage all entries'}</span>
+          {recordsExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+        </button>
+
+        {recordsExpanded && (
+          <div className="space-y-3 max-h-[300px] overflow-y-auto pt-2">
+            {allWeightEntries === undefined ? (
+              <p className="text-xs text-white/50">Loading records...</p>
+            ) : allWeightEntries.length === 0 ? (
+              <p className="text-xs text-white/50">No records stored yet.</p>
+            ) : (
+              allWeightEntries.map((entry) => (
+                <div
+                  key={entry.id ?? entry.createdAt}
+                  className="flex flex-col gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-3"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs text-white/60" onMouseDown={(e) => e.preventDefault()}>
+                        {new Date(entry.date).toLocaleDateString('en-US', {
+                          weekday: 'short',
+                          month: 'short',
+                          day: 'numeric'
+                        })}
+                      </p>
+                      <p className="text-lg font-semibold text-white">
+                        {entry.weight.toFixed(1)} kg
+                      </p>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      {editingEntryId === entry.id ? (
+                        <>
+                          <Button
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={saveEditedEntry}
+                            className="px-3 py-1 text-xs"
+                          >
+                            Save
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={cancelEditing}
+                            className="px-3 py-1 text-xs"
+                          >
+                            Cancel
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <Button
+                            variant="secondary"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => startEditingEntry(entry)}
+                            className="px-3 py-1 text-xs"
+                          >
+                            <Edit3 size={14} className="mr-1" />
+                            Edit
+                          </Button>
+                          <Button
+                            variant="danger"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => handleDeleteEntry(entry.id)}
+                            className="px-3 py-1 text-xs"
+                          >
+                            <Trash2 size={14} className="mr-1" />
+                            Delete
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  {editingEntryId === entry.id && (
+                    <input
+                      type="number"
+                      min="1"
+                      step="0.1"
+                      value={editingWeight}
+                      onChange={(e) => setEditingWeight(e.target.value)}
+                      className="w-full rounded-lg border border-white/20 bg-transparent px-3 py-2 text-white focus:border-blue-400 focus:outline-none"
+                    />
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        )}
+      </div>
     </GlassWidget>
   );
 }

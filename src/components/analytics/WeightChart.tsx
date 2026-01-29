@@ -270,7 +270,7 @@ export default function WeightChart({ timePeriod }: WeightChartProps) {
         ticks: {
           color: 'rgba(255, 255, 255, 0.6)',
           callback: function (value: any) {
-            return value + ' kg';
+            return Number(value).toFixed(1) + ' kg';
           }
         }
       },

@@ -116,7 +116,7 @@ export default function MuscleDistributionChart({
         titleColor: 'rgba(255, 255, 255, 1)',
         bodyColor: 'rgba(255, 255, 255, 0.8)',
         callbacks: {
-          label: function(context: any) {
+          label: function (context: any) {
             return `${context.parsed.r} kg`;
           }
         }
@@ -148,35 +148,35 @@ export default function MuscleDistributionChart({
     <GlassWidget widgetId="analytics-muscle-distribution" showGlow allowColorChange className="p-4 md:p-6">
       <h2 className="text-lg md:text-xl font-bold text-white mb-4 md:mb-6">Muscle Volume</h2>
 
-        <div className="h-[350px]">
-          {sortedData && sortedData.length > 0 ? (
-            <Radar data={data} options={options} />
-          ) : (
-            <div className="h-full flex items-center justify-center">
-              <div className="text-center">
-                <p className="text-white/40 mb-2">No muscle data available</p>
-                <p className="text-white/60 text-sm">Complete some workouts to see volume distribution</p>
-              </div>
+      <div className="h-[350px]">
+        {sortedData && sortedData.length > 0 ? (
+          <Radar data={data} options={options} />
+        ) : (
+          <div className="h-full flex items-center justify-center">
+            <div className="text-center">
+              <p className="text-white/40 mb-2">No muscle data available</p>
+              <p className="text-white/60 text-sm">Complete some workouts to see volume distribution</p>
             </div>
-          )}
-        </div>
-
-        {topMuscles.length > 0 && (
-          <div className="mt-4 space-y-2">
-            {topMuscles.map((item) => {
-              const percentage = totalVolume > 0 ? (item.volume / totalVolume) * 100 : 0;
-              return (
-                <div key={item.muscle} className="flex items-center justify-between rounded bg-white/5 px-3 py-2">
-                  <div>
-                    <p className="text-sm text-white">{item.muscle}</p>
-                    <p className="text-xs text-white/50">{percentage.toFixed(1)}% of total</p>
-                  </div>
-                  <span className="text-sm text-white/60">{item.volume.toFixed(0)} kg</span>
-                </div>
-              );
-            })}
           </div>
         )}
+      </div>
+
+      {topMuscles.length > 0 && (
+        <div className="mt-4 grid grid-cols-2 w-full gap-3">
+          {topMuscles.map((item) => {
+            const percentage = totalVolume > 0 ? (item.volume / totalVolume) * 100 : 0;
+            return (
+              <div key={item.muscle} className="flex items-center justify-between rounded-lg bg-white/5 px-3 py-2">
+                <div>
+                  <p className="text-sm text-white">{item.muscle}</p>
+                  <p className="text-xs text-white/50">{percentage.toFixed(1)}% of total</p>
+                </div>
+                <span className="text-sm text-white/60">{item.volume.toFixed(0)} kg</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </GlassWidget>
   );
 }

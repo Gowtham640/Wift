@@ -1,10 +1,12 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { Activity, User, Ruler, Scale, RefreshCw, X } from 'lucide-react';
 import { useProfile } from '@/hooks/useProfile';
 import { useSettings } from '@/hooks/useSettings';
 import { useWorkouts } from '@/hooks/useWorkouts';
-import { Activity, User, Ruler, Scale } from 'lucide-react';
+import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
 import CalendarWidget from '@/components/dashboard/CalendarWidget';
 import MetricWidget from '@/components/dashboard/MetricWidget';
 import LatestWorkoutWidget from '@/components/dashboard/LatestWorkoutWidget';
@@ -14,18 +16,82 @@ export default function DashboardPage() {
   const { profile, updateProfile, initializeProfile } = useProfile();
   const { initializeSettings } = useSettings();
   const { workouts } = useWorkouts();
+  const { user, manualSync, lastSyncAt, syncStatus, isOnline } = useSupabaseAuth();
+  const [showSyncReminder, setShowSyncReminder] = useState(true);
 
   useEffect(() => {
     initializeProfile();
     initializeSettings();
   }, []);
 
+  useEffect(() => {
+    setShowSyncReminder(true);
+  }, [lastSyncAt, user]);
+
+  const syncReminderThreshold = 7 * 24 * 60 * 60 * 1000;
+  const needsSyncReminder =
+    !!user &&
+    isOnline &&
+    !!lastSyncAt &&
+    Date.now() - lastSyncAt > syncReminderThreshold &&
+    showSyncReminder;
 
   const workoutDates = workouts?.map((w) => w.date) || [];
   const bmi = profile ? calculateBMI(profile.weightKg, profile.heightCm) : 0;
 
   return (
     <div className="space-y-4 md:space-y-6 max-w-7xl mx-auto">
+      {!user && (
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-white/80 space-y-3">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-white">Sync is paused</p>
+              <p className="text-xs text-white/60">
+                Sign in to Supabase to keep routines, workouts, sets, and weight history backed up.
+              </p>
+            </div>
+            <Link
+              href="/auth"
+              className="rounded-full bg-blue-500 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white shadow-lg shadow-blue-500/40 transition hover:opacity-90"
+            >
+              Sign in
+            </Link>
+          </div>
+          <p className="text-xs text-white/60">
+            The dashboard still functions offline, but syncing unlocks multi-device hydration and recovery.
+          </p>
+        </div>
+      )}
+
+      {needsSyncReminder && (
+        <div className="rounded-2xl border border-yellow-400/80 bg-yellow-400/10 p-4 text-sm text-yellow-900 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="space-y-2">
+            <p className="font-semibold text-yellow-900/80">
+              It has been over a week since your last sync. Tap below to refresh your cloud snapshot.
+            </p>
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                onClick={() => void manualSync()}
+                className="inline-flex items-center gap-2 rounded-full border border-yellow-500/70 bg-yellow-500/80 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-yellow-950 transition hover:bg-yellow-500/90"
+              >
+                <RefreshCw size={16} />
+                Resync now
+              </button>
+              <span className="text-[11px] uppercase tracking-[0.2em] text-yellow-900/60">
+                {syncStatus === 'syncing' ? 'Syncing…' : 'Awaiting update'}
+              </span>
+            </div>
+          </div>
+          <button
+            onClick={() => setShowSyncReminder(false)}
+            className="self-start rounded-full border border-transparent bg-white/10 p-2 text-yellow-900 transition hover:bg-white/20 lg:self-center"
+            aria-label="Dismiss sync reminder"
+          >
+            <X size={16} />
+          </button>
+        </div>
+      )}
+
       <div className="px-2 md:px-0">
         <h1 className="text-2xl md:text-3xl font-bold text-white mb-1 md:mb-2">Dashboard</h1>
         <p className="text-sm md:text-base text-white/60">Welcome back, {profile?.name || 'User'}!</p>

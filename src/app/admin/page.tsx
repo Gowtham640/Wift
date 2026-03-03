@@ -4,7 +4,20 @@ import { useState, useEffect } from 'react';
 import { useExercises } from '@/hooks/useExercises';
 import { useProfile } from '@/hooks/useProfile';
 import { useSettings } from '@/hooks/useSettings';
-import { Trash2, Edit, Plus, User, Save, ChevronDown, ChevronUp, AlertTriangle, Settings } from 'lucide-react';
+import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
+import {
+  Trash2,
+  Edit,
+  Plus,
+  User,
+  Save,
+  ChevronDown,
+  ChevronUp,
+  AlertTriangle,
+  Settings,
+  RefreshCw,
+  LogOut
+} from 'lucide-react';
 import GlassWidget from '@/components/ui/GlassWidget';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
@@ -19,13 +32,25 @@ export default function AdminPage() {
   const { exercises, addExercise, updateExercise, deleteExercise, bulkAddExercises, deleteAllExercises } = useExercises({ search });
   const { profile, updateProfile } = useProfile();
   const { settings, updateSettings } = useSettings();
+  const {
+    manualSync,
+    syncStatus,
+    lastSyncAt,
+    lastSyncedVersion,
+    lastSyncError,
+    isOnline,
+    signOut,
+    user
+  } = useSupabaseAuth();
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingExercise, setEditingExercise] = useState<Exercise | null>(null);
   const [profileName, setProfileName] = useState('');
   const [previousDataType, setPreviousDataType] = useState('routine_best');
   const [successMessage, setSuccessMessage] = useState('');
+  const [syncFeedback, setSyncFeedback] = useState('');
   const [exercisesCollapsed, setExercisesCollapsed] = useState(true);
   const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
+  const formattedSyncAt = lastSyncAt ? new Date(lastSyncAt).toLocaleString() : 'Never synced';
 
   useEffect(() => {
     if (profile?.name) {
@@ -94,12 +119,76 @@ export default function AdminPage() {
     }
   };
 
+  const handleManualSync = async () => {
+    setSyncFeedback('Syncing data...');
+    const result = await manualSync();
+    setSyncFeedback(result.message);
+    setTimeout(() => setSyncFeedback(''), 5000);
+  };
+
+  const handleSignOut = async () => {
+    if (!user) {
+      setSyncFeedback('No user session active.');
+      setTimeout(() => setSyncFeedback(''), 5000);
+      return;
+    }
+
+    await signOut();
+    setSyncFeedback('Signed out. IndexedDB data remains.');
+    setTimeout(() => setSyncFeedback(''), 5000);
+  };
+
   return (
     <div className="space-y-4 md:space-y-6 max-w-7xl mx-auto">
       <div className="px-2 md:px-0">
         <h1 className="text-2xl md:text-3xl font-bold text-white mb-2">Admin Panel</h1>
         <p className="text-sm md:text-base text-white/60">Manage exercises and your profile settings</p>
       </div>
+
+      <GlassWidget className="p-4 md:p-6 space-y-4">
+        <div className="flex items-center gap-2">
+          <RefreshCw size={20} className="text-white/70" />
+          <h2 className="text-lg md:text-xl font-bold text-white">Data sync status</h2>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="space-y-1 text-sm text-white/80">
+            <p className="text-xs uppercase tracking-[0.3em] text-white/50">Last sync</p>
+            <p className="text-base font-semibold text-white">{formattedSyncAt}</p>
+            
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button
+                onClick={handleManualSync}
+                disabled={syncStatus === 'syncing'}
+                className="w-full sm:flex-1 justify-center"
+              >
+                <RefreshCw size={18} />
+                <span className="ml-2">{syncStatus === 'syncing' ? 'Syncing…' : 'Manual sync'}</span>
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={handleSignOut}
+                disabled={!user}
+                className="w-full sm:flex-1 justify-center"
+              >
+                <LogOut size={18} />
+                <span className="ml-2">Sign out</span>
+              </Button>
+            </div>
+            <p className="text-xs text-white/60">
+              Status: {syncStatus} {syncStatus === 'syncing' && '(working)'}
+            </p>
+            {syncFeedback && <p className="text-xs text-white/70">{syncFeedback}</p>}
+            {lastSyncError && <p className="text-xs text-red-400">Error: {lastSyncError}</p>}
+            <p className="text-xs text-white/50">
+              {isOnline ? 'Online – syncs happen automatically' : 'Offline – sync attempts queued'}
+            </p>
+          </div>
+        </div>
+      </GlassWidget>
 
       {/* Profile Settings */}
       <GlassWidget className="p-4 md:p-6">

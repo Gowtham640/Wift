@@ -43,23 +43,22 @@ export default function DashboardPage() {
     <div className="space-y-4 md:space-y-6 max-w-7xl mx-auto">
       {!user && (
         <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-white/80 space-y-3">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <p className="text-sm font-semibold text-white">Sync is paused</p>
-              <p className="text-xs text-white/60">
-                Sign in to Supabase to keep routines, workouts, sets, and weight history backed up.
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-center justify-center items-center">
+            <div className="flex flex-col gap-1 justify-center items-center">
+              <p className="text-lg font-medium text-white font-sans">
+                Sign in to keep your data backed up
+              </p>
+              <p className="text-[12px] font-extralight text-white/60 font-sans">
+                Signing In will allow you to sync your data across devices.
               </p>
             </div>
             <Link
               href="/auth"
-              className="rounded-full bg-blue-500 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white shadow-lg shadow-blue-500/40 transition hover:opacity-90"
+              className="rounded-full bg-blue-500 px-4 py-2 w-1/2 text-xs text-center font-semibold uppercase tracking-wide text-white shadow-lg shadow-blue-500/40 transition hover:opacity-90"
             >
               Sign in
             </Link>
           </div>
-          <p className="text-xs text-white/60">
-            The dashboard still functions offline, but syncing unlocks multi-device hydration and recovery.
-          </p>
         </div>
       )}
 

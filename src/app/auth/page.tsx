@@ -5,6 +5,8 @@ import { ShieldCheck, WifiOff, Wifi } from 'lucide-react';
 import GlassWidget from '@/components/ui/GlassWidget';
 import Button from '@/components/ui/Button';
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 
 export default function AuthPage() {
   const {
@@ -15,11 +17,17 @@ export default function AuthPage() {
     lastSyncError,
     isOnline
   } = useSupabaseAuth();
+  const router=useRouter();
+  useEffect(()=>{
+    if(user){
+      router.push('/');
+    }
+  },[user,router]);
 
   const lastSyncText = lastSyncAt ? new Date(lastSyncAt).toLocaleString() : 'Not yet synced';
 
   return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center px-4 py-12">
+    <div className="min-h-screen bg-slate flex items-center justify-center px-4 py-12">
       <GlassWidget className="w-full max-w-3xl p-6 md:p-10">
         <div className="space-y-4">
           <div className="flex items-center gap-2 text-white/70 text-sm">
@@ -30,8 +38,6 @@ export default function AuthPage() {
           <h1 className="text-3xl font-semibold text-white">Secure sign in</h1>
           <p className="text-sm text-white/70">
             Sign in with Google to back up all routines, workouts, sets, and weight entries.
-            This auth layer keeps your Dexie data in sync with Supabase without touching the rest of
-            the app.
           </p>
         </div>
 
@@ -56,8 +62,7 @@ export default function AuthPage() {
           {lastSyncError && <p className="text-red-400">Last sync error: {lastSyncError}</p>}
           <p>
             All profile, routine, workout, set, and weight entry data is stored locally in IndexedDB
-            and mirrored on Supabase. Logging into a new device will hydrate your database from the
-            cloud snapshot automatically.
+            and mirrored on Supabase. Logging into a new device will fetch all your data automatically.
           </p>
         </div>
 

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { LogIn } from 'lucide-react';
 import { useExercises } from '@/hooks/useExercises';
 import { useProfile } from '@/hooks/useProfile';
 import { useSettings } from '@/hooks/useSettings';
@@ -26,6 +27,8 @@ import FileUploader from '@/components/admin/FileUploader';
 import SearchInput from '@/components/ui/SearchInput';
 import Input from '@/components/ui/Input';
 import { type Exercise } from '@/lib/db';
+import { useRouter } from 'next/navigation';
+
 
 export default function AdminPage() {
   const [search, setSearch] = useState('');
@@ -74,8 +77,15 @@ export default function AdminPage() {
       setSuccessMessage('Failed to update profile. Please try again.');
       setTimeout(() => setSuccessMessage(''), 3000);
     }
-  };
-
+  }
+  const router=useRouter();
+  const handleAuthAction = async () => {
+    if(user){
+      await signOut();
+    }else{
+      router.push('/auth');
+    }
+  }
   const handleUpdatePreviousDataType = async () => {
     try {
       await updateSettings({ previousDataType: previousDataType as any });
@@ -159,24 +169,23 @@ export default function AdminPage() {
           </div>
 
           <div className="space-y-2">
-            <div className="flex flex-col gap-2 sm:flex-row">
+            <div className="flex flex-row gap-2 sm:flex-row">
               <Button
                 onClick={handleManualSync}
                 disabled={syncStatus === 'syncing'}
-                className="w-full sm:flex-1 justify-center"
+                className="w-1/2 sm:flex-1 justify-center"
               >
                 <RefreshCw size={18} />
                 <span className="ml-2">{syncStatus === 'syncing' ? 'Syncing…' : 'Manual sync'}</span>
               </Button>
               <Button
-                variant="secondary"
-                onClick={handleSignOut}
-                disabled={!user}
-                className="w-full sm:flex-1 justify-center"
-              >
-                <LogOut size={18} />
-                <span className="ml-2">Sign out</span>
-              </Button>
+  variant="secondary"
+  onClick={handleAuthAction}
+  className="w-1/2 sm:flex-1 justify-center"
+>
+  {user ? <LogOut size={18} /> : <LogIn size={18} />}
+  <span className="ml-2">{user ? 'Sign out' : 'Sign in'}</span>
+</Button>
             </div>
             <p className="text-xs text-white/60">
               Status: {syncStatus} {syncStatus === 'syncing' && '(working)'}

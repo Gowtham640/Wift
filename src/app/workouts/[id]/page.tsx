@@ -279,10 +279,16 @@ export default function WorkoutPage() {
       return;
     }
 
-    try {
+  try {
       await addExerciseToRoutine(workout.workout.routineId, exerciseId, 3, 8); // Default 3 sets, 8 reps
+
+      if (currentWorkoutId) {
+        // Mirror the new exercise into the running workout so the user can log it immediately.
+        await addExerciseToWorkout(currentWorkoutId, exerciseId);
+      }
+
       refreshRoutine(); // Refresh the routine data in UI
-      showToast('Exercise added to routine!', 'success');
+      showToast('Exercise added to routine and current workout!', 'success');
       setShowAddExerciseModal(false);
     } catch (error) {
       console.error('Failed to add exercise to routine:', error);

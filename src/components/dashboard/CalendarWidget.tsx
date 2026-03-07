@@ -43,6 +43,7 @@ export default function CalendarWidget({ workoutDates }: CalendarWidgetProps) {
   };
 
   return (
+    
     <GlassWidget widgetId="dashboard-calendar" showGlow allowColorChange className="p-4 md:p-6">
       <div className="flex items-center justify-between pr-10 mb-4 md:mb-6">
         <h2 className="text-lg md:text-xl font-bold text-white">
@@ -63,7 +64,6 @@ export default function CalendarWidget({ workoutDates }: CalendarWidgetProps) {
           </button>
         </div>
       </div>
-
       <div className="grid grid-cols-7 gap-2">
         {DAYS.map((day) => (
           <div key={day} className="text-center text-xs font-medium text-white/60 mb-2">

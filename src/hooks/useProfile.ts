@@ -2,11 +2,20 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type Profile } from '@/lib/db';
 import { getISTDateString, getISTTimestamp } from '@/lib/utils';
 
+type UpdateProfileOptions = {
+  recordWeightEntry?: boolean;
+};
+
 export function useProfile() {
   const profile = useLiveQuery(() => db.profiles.get(1));
 
-  const updateProfile = async (data: Partial<Omit<Profile, 'id'>>) => {
-    // Update the profile
+  const updateProfile = async (
+    data: Partial<Omit<Profile, 'id'>>,
+    options?: UpdateProfileOptions
+  ) => {
+    const shouldRecordWeightEntry = options?.recordWeightEntry ?? true;
+
+    // Update the profile row first, reusing existing values as fallbacks.
     await db.profiles.put({
       id: 1,
       name: profile?.name || '',
@@ -16,8 +25,8 @@ export function useProfile() {
       updatedAt: Date.now()
     });
 
-    // If weight was updated, also add an entry to weight_entries for analytics
-    if (data.weightKg !== undefined) {
+    // Only write a new weight entry when the caller explicitly wants it.
+    if (shouldRecordWeightEntry && data.weightKg !== undefined) {
       await db.weight_entries.add({
         weight: data.weightKg,
         date: getISTDateString(),

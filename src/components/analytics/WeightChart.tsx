@@ -132,8 +132,9 @@ export default function WeightChart({ timePeriod }: WeightChartProps) {
         createdAt: getISTTimestamp()
       });
 
-      // Also update the profile weight so dashboard shows current weight
-      await updateProfile({ weightKg: weight });
+      // Also update the profile weight so dashboard shows current weight,
+      // but avoid writing a second analytics entry (we already added one above).
+      await updateProfile({ weightKg: weight }, { recordWeightEntry: false });
 
       // Force refresh to ensure UI updates immediately
       setRefreshTrigger(prev => prev + 1);

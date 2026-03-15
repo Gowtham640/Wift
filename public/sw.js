@@ -1,14 +1,23 @@
-// Bare-minimum offline-first SW for testing
+﻿// Bare-minimum offline-first SW for testing
+const CORE_ROUTES = [
+  '/',
+  '/auth',
+  '/history',
+  '/analytics',
+  '/routines',
+  '/exercises',
+  '/workouts',
+  '/admin',
+  '/offline.html',
+  '/manifest.json',
+  '/vercel.svg'
+];
+
 self.addEventListener('install', (event) => {
   console.log('🔄 SW v11 installing...');
   self.skipWaiting();
   event.waitUntil(
-    caches.open('v11').then((cache) =>
-      cache.addAll([
-        '/',           // Dashboard (for root route)
-        '/offline.html' // Offline page (for uncached routes)
-      ])
-    )
+    caches.open('v11').then((cache) => cache.addAll(CORE_ROUTES))
   );
 });
 
@@ -32,6 +41,23 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+  if (event.request.url.includes('/_next/')) {
+    event.respondWith(
+      (async () => {
+        const cache = await caches.open('v11');
+        const cachedResponse = await cache.match(event.request);
+        if (cachedResponse) {
+          return cachedResponse;
+        }
+
+        const networkResponse = await fetch(event.request);
+        cache.put(event.request, networkResponse.clone());
+        return networkResponse;
+      })()
+    );
+    return;
+  }
+
   if (event.request.mode === 'navigate') {
     event.respondWith(
       (async () => {
@@ -42,7 +68,10 @@ self.addEventListener('fetch', (event) => {
           // Online: Try network first, no offline page
           try {
             console.log('🌐 Online request for:', event.request.url);
-            return await fetch(event.request);
+            const response = await fetch(event.request);
+            const cache = await caches.open('v11');
+            cache.put(event.request, response.clone());
+            return response;
           } catch (error) {
             console.log('🌐 Network failed, trying cache:', event.request.url);
             // Network failed, try cache as fallback

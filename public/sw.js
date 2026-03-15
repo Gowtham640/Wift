@@ -17,7 +17,20 @@ self.addEventListener('install', (event) => {
   console.log('🔄 SW v11 installing...');
   self.skipWaiting();
   event.waitUntil(
-    caches.open('v11').then((cache) => cache.addAll(CORE_ROUTES))
+    (async () => {
+      const cache = await caches.open('v11');
+  
+      for (const route of CORE_ROUTES) {
+        try {
+          const response = await fetch(route);
+          if (response.ok) {
+            await cache.put(route, response.clone());
+          }
+        } catch (err) {
+          console.log('⚠️ Failed to cache route:', route);
+        }
+      }
+    })()
   );
 });
 
@@ -45,14 +58,17 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       (async () => {
         const cache = await caches.open('v11');
-        const cachedResponse = await cache.match(event.request);
-        if (cachedResponse) {
-          return cachedResponse;
+  
+        const cached = await cache.match(event.request);
+        if (cached) return cached;
+  
+        try {
+          const response = await fetch(event.request);
+          await cache.put(event.request, response.clone());
+          return response;
+        } catch (err) {
+          return cached || new Response('', { status: 503 });
         }
-
-        const networkResponse = await fetch(event.request);
-        cache.put(event.request, networkResponse.clone());
-        return networkResponse;
       })()
     );
     return;
@@ -70,7 +86,12 @@ self.addEventListener('fetch', (event) => {
             console.log('🌐 Online request for:', event.request.url);
             const response = await fetch(event.request);
             const cache = await caches.open('v11');
-            cache.put(event.request, response.clone());
+
+            const url = new URL(event.request.url);
+            const normalizedRequest = new Request(url.pathname);
+
+            await cache.put(normalizedRequest, response.clone());
+
             return response;
           } catch (error) {
             console.log('🌐 Network failed, trying cache:', event.request.url);
@@ -78,10 +99,18 @@ self.addEventListener('fetch', (event) => {
             const cache = await caches.open('v11');
             const url = new URL(event.request.url);
             const normalizedRequest = new Request(url.pathname);
-            const cachedRoute = await cache.match(normalizedRequest);
+            let cachedRoute = await cache.match(normalizedRequest);
+
             if (cachedRoute) {
-              console.log('✅ Serving cached route (fallback):', event.request.url);
               return cachedRoute;
+            }
+
+            // Handle dynamic routine routes offline
+            if (url.pathname.startsWith('/routine/')) {
+              const fallback = await cache.match('/routines');
+              if (fallback) {
+                return fallback;
+              }
             }
             // No cache available, show offline page
             const offlinePage = await cache.match('/offline.html');

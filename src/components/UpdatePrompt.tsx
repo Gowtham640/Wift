@@ -1,10 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { RefreshCw } from 'lucide-react';
 
 export default function UpdatePrompt() {
   const [showReload, setShowReload] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     // Listen for service worker controller change (update activated)
@@ -21,7 +23,7 @@ export default function UpdatePrompt() {
   }, []);
 
   const handleReload = () => {
-    window.location.reload();
+    router.refresh();
   };
 
   if (!showReload) return null;

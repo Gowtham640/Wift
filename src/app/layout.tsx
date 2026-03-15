@@ -1,11 +1,15 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import Providers from "./providers";
+import AppMonitor from "@/components/appMonitor";
 
 export const metadata: Metadata = {
   title: "Gym Tracker",
   description: "Track your fitness journey with ease",
   manifest: "/manifest.json",
+  verification: {
+    google: "h7G_P0LjYfJbTdab0lcaBbHZXssCIetEaOb8YY0kWM4",
+  },
 };
 
 export const viewport = {
@@ -32,6 +36,7 @@ export default function RootLayout({
             `,
           }}
         />
+        <AppMonitor />
         <Providers>{children}</Providers>
       </body>
     </html>

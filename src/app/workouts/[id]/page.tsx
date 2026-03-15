@@ -333,8 +333,8 @@ export default function WorkoutPage() {
         await db.workouts.update(currentWorkoutId, updates);
         setShowEditWorkoutModal(false);
         showToast('Workout updated!', 'success');
-        // Force a page refresh to show updated data
-        window.location.reload();
+        // Refresh the current route instead of forcing a hard reload
+        router.refresh();
       }
     } catch (error) {
       console.error('Failed to update workout:', error);

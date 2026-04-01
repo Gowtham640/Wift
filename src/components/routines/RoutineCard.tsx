@@ -1,6 +1,9 @@
+import { useState } from 'react';
 import { Play, Edit, Trash2, Dumbbell } from 'lucide-react';
 import GlassWidget from '@/components/ui/GlassWidget';
 import { useRouter } from 'next/navigation';
+import { useWorkouts } from '@/hooks/useWorkouts';
+import { showToast } from '@/components/ui/Toast';
 
 interface RoutineCardProps {
   id: number;
@@ -20,9 +23,22 @@ export default function RoutineCard({
   onDelete
 }: RoutineCardProps) {
   const router = useRouter();
+  const { createWorkout } = useWorkouts();
+  const [isStarting, setIsStarting] = useState(false);
 
   const handleStart = async () => {
-    router.push(`/workouts/new?routineId=${id}`);
+    if (isStarting) return;
+
+    setIsStarting(true);
+    try {
+      const workoutId = await createWorkout(id);
+      router.push(`/workouts/${workoutId}`);
+    } catch (error) {
+      console.error('Failed to start routine workout:', error);
+      showToast('Failed to start workout. Please try again.', 'error');
+    } finally {
+      setIsStarting(false);
+    }
   };
 
   return (
@@ -56,10 +72,11 @@ export default function RoutineCard({
 
       <button
         onClick={handleStart}
+        disabled={isStarting}
         className="w-full btn btn-primary py-3"
       >
         <Play size={16} />
-        Start Workout
+        {isStarting ? 'Starting...' : 'Start Workout'}
       </button>
     </GlassWidget>
   );

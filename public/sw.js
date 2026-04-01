@@ -1,4 +1,4 @@
-﻿// Bare-minimum offline-first SW for testing
+// Bare-minimum offline-first SW for testing
 const CORE_ROUTES = [
   '/',
   '/auth',
@@ -6,7 +6,6 @@ const CORE_ROUTES = [
   '/analytics',
   '/routines',
   '/exercises',
-  '/workouts',
   '/admin',
   '/offline.html',
   '/manifest.json',
@@ -77,73 +76,22 @@ self.addEventListener('fetch', (event) => {
   if (event.request.mode === 'navigate') {
     event.respondWith(
       (async () => {
-        // Check if we're online first
-        const isOnline = navigator.onLine;
-
-        if (isOnline) {
-          // Online: Try network first, no offline page
-          try {
-            console.log('🌐 Online request for:', event.request.url);
-            const response = await fetch(event.request);
-            const cache = await caches.open('v11');
-
-            const url = new URL(event.request.url);
-            const normalizedRequest = new Request(url.pathname);
-
-            await cache.put(normalizedRequest, response.clone());
-
-            return response;
-          } catch (error) {
-            console.log('🌐 Network failed, trying cache:', event.request.url);
-            // Network failed, try cache as fallback
-            const cache = await caches.open('v11');
-            const url = new URL(event.request.url);
-            const normalizedRequest = new Request(url.pathname);
-            let cachedRoute = await cache.match(normalizedRequest);
-
-            if (cachedRoute) {
-              return cachedRoute;
-            }
-
-            // Handle dynamic routine routes offline
-            if (url.pathname.startsWith('/routine/')) {
-              const fallback = await cache.match('/routines');
-              if (fallback) {
-                return fallback;
-              }
-            }
-            // No cache available, show offline page
-            const offlinePage = await cache.match('/offline.html');
-            return offlinePage || new Response('Offline', { status: 503 });
-          }
-        } else {
-          // Offline: Use smart visited route logic
+        try {
+          // CHANGED: network-first for all navigation requests
+          console.log('🌐 Navigation request:', event.request.url);
+          const response = await fetch(event.request);
           const cache = await caches.open('v11');
           const url = new URL(event.request.url);
           const normalizedRequest = new Request(url.pathname);
-          const cachedRoute = await cache.match(normalizedRequest);
-
-          if (cachedRoute) {
-            console.log('✅ Serving cached route:', event.request.url);
-            return cachedRoute;
-          }
-
-          // Check if route was visited before
-          const visitedRoutes = JSON.parse(
-            sessionStorage.getItem('visited_routes') || '[]'
-          );
-
-          if (visitedRoutes.includes(url.pathname)) {
-            // Visited but not cached? Something wrong, show offline page
-            console.log('📄 Visited but not cached, showing offline:', event.request.url);
-            const offlinePage = await cache.match('/offline.html');
-            return offlinePage || new Response('Offline', { status: 503 });
-          } else {
-            // Never visited offline route - show offline page
-            console.log('📄 Unvisited offline route:', event.request.url);
-            const offlinePage = await cache.match('/offline.html');
-            return offlinePage || new Response('Offline', { status: 503 });
-          }
+          await cache.put(normalizedRequest, response.clone());
+          return response;
+        } catch (error) {
+          // CHANGED: app-shell fallback for any offline navigation
+          const cache = await caches.open('v11');
+          const appShell = await cache.match('/');
+          if (appShell) return appShell;
+          const offlinePage = await cache.match('/offline.html');
+          return offlinePage || new Response('Offline', { status: 503 });
         }
       })()
     );

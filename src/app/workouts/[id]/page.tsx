@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { useRouter, useSearchParams, usePathname } from 'next/navigation';
-import { useWorkout, useWorkouts } from '@/hooks/useWorkouts';
-import { useRoutines, useRoutine } from '@/hooks/useRoutines';
+import { useRouter, usePathname } from 'next/navigation';
+import { useWorkout } from '@/hooks/useWorkouts';
+import { useRoutine } from '@/hooks/useRoutines';
 import { useExercises } from '@/hooks/useExercises';
 import { ArrowLeft, Check, Clock, Plus, Calendar } from 'lucide-react';
 import Button from '@/components/ui/Button';
@@ -17,23 +17,25 @@ import { db, type Workout } from '@/lib/db';
 export default function WorkoutPage() {
   const router = useRouter();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const routineId = searchParams.get('routineId');
-
+  const routeId = useMemo(() => pathname.split('/').pop() ?? null, [pathname]);
   const workoutId = useMemo(() => {
-    const id = pathname.split('/').pop();
-    return id === 'new' ? null : id ? parseInt(id) : null;
-  }, [pathname]);
+    if (!routeId) return null;
+    const parsed = Number(routeId);
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+  }, [routeId]);
 
-  const { createWorkout } = useWorkouts();
-  const { updateRoutine } = useRoutines();
+  useEffect(() => {
+    if (routeId === 'new' || workoutId === null) {
+      // Backward safety: /workouts/new and invalid ids no longer create workouts.
+      router.replace('/routines');
+    }
+  }, [routeId, workoutId, router]);
+
   // Note: We don't need refreshRoutine here since the workout page doesn't display routine data
-  const [currentWorkoutId, setCurrentWorkoutId] = useState<number | null>(workoutId);
-  const { workout, loading, completeWorkout, addExerciseToWorkout } = useWorkout(currentWorkoutId);
+  const { workout, loading, completeWorkout, addExerciseToWorkout } = useWorkout(workoutId);
   const { addExerciseToRoutine, refreshRoutine } = useRoutine(workout?.workout.routineId || null);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [showUpdateRoutineModal, setShowUpdateRoutineModal] = useState(false);
-  const [showDateSelectionModal, setShowDateSelectionModal] = useState(false);
   const [showAddExerciseModal, setShowAddExerciseModal] = useState(false);
   const [showAddExerciseToWorkoutModal, setShowAddExerciseToWorkoutModal] = useState(false);
   const [showEditWorkoutModal, setShowEditWorkoutModal] = useState(false);
@@ -42,36 +44,11 @@ export default function WorkoutPage() {
   const [exerciseSearch, setExerciseSearch] = useState('');
   const [exerciseMuscleFilter, setExerciseMuscleFilter] = useState('');
   const [exerciseEquipmentFilter, setExerciseEquipmentFilter] = useState('');
-  const [selectedDate, setSelectedDate] = useState(getTodayString());
   const { exercises: allExercises } = useExercises({
     search: exerciseSearch,
     muscleGroup: exerciseMuscleFilter,
     equipment: exerciseEquipmentFilter
   });
-
-  useEffect(() => {
-    if (workoutId === null) {
-      // Show date selection modal for new workouts
-      setShowDateSelectionModal(true);
-    }
-  }, [workoutId]);
-
-  const handleDateSelected = async () => {
-    try {
-      setShowDateSelectionModal(false);
-      const id = await createWorkout(routineId ? parseInt(routineId) : undefined, selectedDate);
-
-      // Wait for workout to be fully created and queryable
-      await new Promise(resolve => setTimeout(resolve, 100));
-
-      setCurrentWorkoutId(Number(id));
-      router.replace(`/workouts/${id}`);
-    } catch (error) {
-      console.error('Failed to create workout:', error);
-      // Fallback to dashboard on error
-      router.push('/');
-    }
-  };
 
   useEffect(() => {
     if (!workout?.workout.endTime) {
@@ -86,10 +63,10 @@ export default function WorkoutPage() {
 
   const handleComplete = async () => {
     console.log('🏁 WORKOUT COMPLETION: Starting workout completion process');
-    console.log('🏁 WORKOUT COMPLETION: Current workout ID:', currentWorkoutId);
+    console.log('🏁 WORKOUT COMPLETION: Current workout ID:', workoutId);
     console.log('🏁 WORKOUT COMPLETION: Workout data:', workout);
 
-    if (!currentWorkoutId || !workout) {
+    if (!workoutId || !workout) {
       console.log('❌ WORKOUT COMPLETION: Missing workout data, aborting');
       return;
     }
@@ -105,7 +82,7 @@ export default function WorkoutPage() {
       setShowUpdateRoutineModal(true);
     } else {
       console.log('✅ WORKOUT COMPLETION: No changes detected, completing workout normally');
-      await completeWorkout(currentWorkoutId);
+      await completeWorkout(workoutId);
       console.log('✅ WORKOUT COMPLETION: Workout completed successfully, redirecting to dashboard');
       router.push('/');
     }
@@ -155,10 +132,10 @@ export default function WorkoutPage() {
 
   const handleUpdateRoutine = async () => {
     console.log('🔄 ROUTINE UPDATE: Starting routine update process');
-    console.log('🔄 ROUTINE UPDATE: Current workout ID:', currentWorkoutId);
+    console.log('🔄 ROUTINE UPDATE: Current workout ID:', workoutId);
     console.log('🔄 ROUTINE UPDATE: Routine ID:', workout?.workout.routineId);
 
-    if (!currentWorkoutId || !workout?.workout.routineId) {
+    if (!workoutId || !workout?.workout.routineId) {
       console.log('❌ ROUTINE UPDATE: Missing required data, aborting');
       showToast('Failed to update routine - missing data', 'error');
       return;
@@ -247,7 +224,7 @@ export default function WorkoutPage() {
       console.log('🏁 ROUTINE UPDATE: Completing workout...');
 
       // Complete the workout
-      await completeWorkout(currentWorkoutId);
+      await completeWorkout(workoutId);
       console.log('✅ ROUTINE UPDATE: Workout completed, redirecting to dashboard');
 
       showToast(`Routine updated successfully! Updated ${updatedCount} exercises.`, 'success');
@@ -261,9 +238,9 @@ export default function WorkoutPage() {
   const handleCompleteWithoutUpdate = async () => {
     console.log('🏁 WORKOUT COMPLETION: User chose not to update routine, completing workout normally');
 
-    if (currentWorkoutId) {
+    if (workoutId) {
       console.log('🏁 WORKOUT COMPLETION: Completing workout without routine update...');
-      await completeWorkout(currentWorkoutId);
+      await completeWorkout(workoutId);
       console.log('✅ WORKOUT COMPLETION: Workout completed successfully');
       showToast('Workout completed successfully!', 'success');
       router.push('/');
@@ -282,9 +259,9 @@ export default function WorkoutPage() {
   try {
       await addExerciseToRoutine(workout.workout.routineId, exerciseId, 3, 8); // Default 3 sets, 8 reps
 
-      if (currentWorkoutId) {
+      if (workoutId) {
         // Mirror the new exercise into the running workout so the user can log it immediately.
-        await addExerciseToWorkout(currentWorkoutId, exerciseId);
+        await addExerciseToWorkout(workoutId, exerciseId);
       }
 
       refreshRoutine(); // Refresh the routine data in UI
@@ -297,13 +274,13 @@ export default function WorkoutPage() {
   };
 
   const handleAddExerciseToWorkout = async (exerciseId: number) => {
-    if (!currentWorkoutId) {
+    if (!workoutId) {
       showToast('Cannot add exercise - no workout selected', 'error');
       return;
     }
 
     try {
-      await addExerciseToWorkout(currentWorkoutId, exerciseId);
+      await addExerciseToWorkout(workoutId, exerciseId);
       showToast('Exercise added to workout!', 'success');
       setShowAddExerciseToWorkoutModal(false);
     } catch (error) {
@@ -313,7 +290,7 @@ export default function WorkoutPage() {
   };
 
   const handleSaveWorkoutEdits = async () => {
-    if (!currentWorkoutId) return;
+    if (!workoutId) return;
 
     try {
       const updates: Partial<Workout> = {};
@@ -330,7 +307,7 @@ export default function WorkoutPage() {
       }
 
       if (Object.keys(updates).length > 0) {
-        await db.workouts.update(currentWorkoutId, updates);
+        await db.workouts.update(workoutId, updates);
         setShowEditWorkoutModal(false);
         showToast('Workout updated!', 'success');
         // Refresh the current route instead of forcing a hard reload
@@ -586,51 +563,6 @@ export default function WorkoutPage() {
               className="flex-1"
             >
               Save Changes
-            </Button>
-          </div>
-        </div>
-      </Modal>
-
-      {/* Date Selection Modal */}
-      <Modal
-        isOpen={showDateSelectionModal}
-        onClose={() => router.push('/')}
-        title="Select Workout Date"
-      >
-        <div className="space-y-6">
-          <div className="text-center">
-            <Calendar className="mx-auto mb-4 text-blue-400" size={48} />
-            <p className="text-white/80 mb-4">
-              When did you perform this workout?
-            </p>
-          </div>
-
-          <div className="space-y-4">
-            <label className="block text-sm font-medium text-white/80">
-              Workout Date
-            </label>
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              max={getTodayString()} // Don't allow future dates
-              className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
-
-          <div className="flex gap-3">
-            <Button
-              onClick={() => router.push('/')}
-              variant="secondary"
-              className="flex-1"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleDateSelected}
-              className="flex-1"
-            >
-              Start Workout
             </Button>
           </div>
         </div>

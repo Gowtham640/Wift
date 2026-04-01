@@ -3,19 +3,23 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useRoutines } from '@/hooks/useRoutines';
+import { useWorkouts } from '@/hooks/useWorkouts';
 import { Plus, Zap } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
 import SearchInput from '@/components/ui/SearchInput';
 import RoutineCard from '@/components/routines/RoutineCard';
 import RoutineForm from '@/components/routines/RoutineForm';
+import { showToast } from '@/components/ui/Toast';
 
 export default function RoutinesPage() {
   const router = useRouter();
   const [search, setSearch] = useState('');
   const { routines, addRoutine, updateRoutine, deleteRoutine } = useRoutines(search);
+  const { createWorkout } = useWorkouts();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingRoutine, setEditingRoutine] = useState<any>(null);
+  const [isStartingFreeWorkout, setIsStartingFreeWorkout] = useState(false);
 
   const handleCreate = async (routine: { name: string; notes?: string }) => {
     const id = await addRoutine(routine);
@@ -36,8 +40,19 @@ export default function RoutinesPage() {
     }
   };
 
-  const handleStartFreeWorkout = () => {
-    router.push('/workouts/new');
+  const handleStartFreeWorkout = async () => {
+    if (isStartingFreeWorkout) return;
+
+    setIsStartingFreeWorkout(true);
+    try {
+      const workoutId = await createWorkout();
+      router.push(`/workouts/${workoutId}`);
+    } catch (error) {
+      console.error('Failed to start free workout:', error);
+      showToast('Failed to start workout. Please try again.', 'error');
+    } finally {
+      setIsStartingFreeWorkout(false);
+    }
   };
 
   return (
@@ -45,9 +60,14 @@ export default function RoutinesPage() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <h1 className="text-2xl md:text-3xl font-bold text-white">Routines</h1>
         <div className="flex gap-2 md:gap-3 w-full sm:w-auto">
-          <Button variant="secondary" onClick={handleStartFreeWorkout} className="flex-1 sm:flex-none text-sm md:text-base py-2 md:py-3">
+          <Button
+            variant="secondary"
+            onClick={handleStartFreeWorkout}
+            className="flex-1 sm:flex-none text-sm md:text-base py-2 md:py-3"
+            disabled={isStartingFreeWorkout}
+          >
             <Zap size={18} />
-            <span className="hidden sm:inline">Free Workout</span>
+            <span className="hidden sm:inline">{isStartingFreeWorkout ? 'Starting...' : 'Free Workout'}</span>
           </Button>
           <Button onClick={() => setShowCreateModal(true)} className="flex-1 sm:flex-none text-sm md:text-base py-2 md:py-3">
             <Plus size={18} />

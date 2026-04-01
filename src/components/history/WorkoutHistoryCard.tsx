@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Trash2, Edit, Calendar, Clock, Dumbbell, TrendingUp } from 'lucide-react';
@@ -17,6 +18,7 @@ interface WorkoutHistoryCardProps {
 
 export default function WorkoutHistoryCard({ workout, onEdit, onDelete }: WorkoutHistoryCardProps) {
   const router = useRouter();
+  const workoutPath = workout.id ? `/workouts/${workout.id}` : null;
 
   const isCompleted = !!workout.endTime;
   const duration = workout.endTime ? workout.endTime - workout.startTime : 0;
@@ -73,8 +75,15 @@ export default function WorkoutHistoryCard({ workout, onEdit, onDelete }: Workou
     });
   };
 
+  useEffect(() => {
+    if (!workoutPath) return;
+    void router.prefetch(workoutPath);
+  }, [router, workoutPath]);
+
   const handleCardClick = () => {
-    router.push(`/workouts/${workout.id}`);
+    if (!workoutPath) return;
+    void router.prefetch(workoutPath);
+    router.push(workoutPath);
   };
 
   return (
@@ -167,7 +176,9 @@ export default function WorkoutHistoryCard({ workout, onEdit, onDelete }: Workou
           variant="secondary"
           onClick={(e) => {
             e.stopPropagation();
-            router.push(`/workouts/${workout.id}`);
+            if (!workoutPath) return;
+            void router.prefetch(workoutPath);
+            router.push(workoutPath);
           }}
         >
           View Details

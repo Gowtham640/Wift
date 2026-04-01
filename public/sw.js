@@ -1,4 +1,5 @@
 // Bare-minimum offline-first SW for testing
+const CACHE_NAME = 'v12';
 const CORE_ROUTES = [
   '/',
   '/auth',
@@ -13,11 +14,11 @@ const CORE_ROUTES = [
 ];
 
 self.addEventListener('install', (event) => {
-  console.log('🔄 SW v11 installing...');
+  console.log('🔄 SW v12 installing...');
   self.skipWaiting();
   event.waitUntil(
     (async () => {
-      const cache = await caches.open('v11');
+      const cache = await caches.open(CACHE_NAME);
   
       for (const route of CORE_ROUTES) {
         try {
@@ -34,13 +35,13 @@ self.addEventListener('install', (event) => {
 });
 
 self.addEventListener('activate', (event) => {
-  console.log('🎯 SW v11 activating...');
+  console.log('🎯 SW v12 activating...');
   event.waitUntil(
     // Clean up old caches except current
     caches.keys().then(cacheNames => {
       return Promise.all(
         cacheNames
-          .filter(name => name !== 'v11') // Keep only current cache
+          .filter(name => name !== CACHE_NAME) // Keep only current cache
           .map(name => {
             console.log('🗑️ Deleting old cache:', name);
             return caches.delete(name);
@@ -56,16 +57,15 @@ self.addEventListener('fetch', (event) => {
   if (event.request.url.includes('/_next/')) {
     event.respondWith(
       (async () => {
-        const cache = await caches.open('v11');
-  
-        const cached = await cache.match(event.request);
-        if (cached) return cached;
-  
+        const cache = await caches.open(CACHE_NAME);
         try {
           const response = await fetch(event.request);
-          await cache.put(event.request, response.clone());
+          if (response.ok) {
+            await cache.put(event.request, response.clone());
+          }
           return response;
-        } catch (err) {
+        } catch {
+          const cached = await cache.match(event.request);
           return cached || new Response('', { status: 503 });
         }
       })()
@@ -80,14 +80,21 @@ self.addEventListener('fetch', (event) => {
           // CHANGED: network-first for all navigation requests
           console.log('🌐 Navigation request:', event.request.url);
           const response = await fetch(event.request);
-          const cache = await caches.open('v11');
+          const cache = await caches.open(CACHE_NAME);
           const url = new URL(event.request.url);
           const normalizedRequest = new Request(url.pathname);
           await cache.put(normalizedRequest, response.clone());
           return response;
         } catch (error) {
-          // CHANGED: app-shell fallback for any offline navigation
-          const cache = await caches.open('v11');
+          // Offline fallback order:
+          // 1) exact requested path from cache
+          // 2) app shell
+          // 3) offline page
+          const cache = await caches.open(CACHE_NAME);
+          const url = new URL(event.request.url);
+          const normalizedRequest = new Request(url.pathname);
+          const routeMatch = await cache.match(normalizedRequest);
+          if (routeMatch) return routeMatch;
           const appShell = await cache.match('/');
           if (appShell) return appShell;
           const offlinePage = await cache.match('/offline.html');

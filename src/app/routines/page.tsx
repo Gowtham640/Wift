@@ -46,6 +46,7 @@ export default function RoutinesPage() {
     setIsStartingFreeWorkout(true);
     try {
       const workoutId = await createWorkout();
+      await router.prefetch(`/workouts/${workoutId}`);
       router.push(`/workouts/${workoutId}`);
     } catch (error) {
       console.error('Failed to start free workout:', error);

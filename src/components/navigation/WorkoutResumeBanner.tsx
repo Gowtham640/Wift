@@ -53,12 +53,21 @@ export default function WorkoutResumeBanner() {
     };
   }, [isOnWorkoutPage]);
 
+  const workoutPath = incompleteWorkout?.id ? `/workouts/${incompleteWorkout.id}` : null;
+
+  React.useEffect(() => {
+    if (!workoutPath) return;
+    void router.prefetch(workoutPath);
+  }, [router, workoutPath]);
+
   if (!incompleteWorkout || isOnWorkoutPage) {
     return null;
   }
 
   const handleResume = () => {
-    router.push(`/workouts/${incompleteWorkout.id}`);
+    if (!workoutPath) return;
+    void router.prefetch(workoutPath);
+    router.push(workoutPath);
   };
 
   const handleDiscardClick = () => {
@@ -143,6 +152,10 @@ export default function WorkoutResumeBanner() {
               Discard
             </Button>
             <Button
+              onMouseEnter={() => {
+                if (!workoutPath) return;
+                void router.prefetch(workoutPath);
+              }}
               onClick={handleResume}
               className="px-3 py-1.5 text-xs bg-white hover:bg-white/90 text-blue-600"
             >

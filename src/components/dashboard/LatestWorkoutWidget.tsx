@@ -4,6 +4,7 @@ import { formatDate, formatDuration } from '@/lib/utils';
 import Link from 'next/link';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 import { db } from '@/lib/db';
 
 export default function LatestWorkoutWidget() {
@@ -62,6 +63,12 @@ export default function LatestWorkoutWidget() {
 
     return result;
   }, []);
+
+  useEffect(() => {
+    const id = workout?.workout.id;
+    if (!id) return;
+    void router.prefetch(`/workouts/${id}`);
+  }, [router, workout?.workout.id]);
 
   // Show loading skeleton immediately
   if (workout === undefined) {
@@ -163,6 +170,7 @@ export default function LatestWorkoutWidget() {
 
         <Link
           href={`/workouts/${workout.workout.id}`}
+          onMouseEnter={() => void router.prefetch(`/workouts/${workout.workout.id}`)}
           className="block w-full btn btn-secondary text-center"
         >
           View Workout

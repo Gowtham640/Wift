@@ -32,6 +32,7 @@ export default function RoutineCard({
     setIsStarting(true);
     try {
       const workoutId = await createWorkout(id);
+      await router.prefetch(`/workouts/${workoutId}`);
       router.push(`/workouts/${workoutId}`);
     } catch (error) {
       console.error('Failed to start routine workout:', error);

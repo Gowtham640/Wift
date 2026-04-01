@@ -15,7 +15,10 @@ const CORE_ROUTES = [
 
 self.addEventListener('install', (event) => {
   console.log('🔄 SW v12 installing...');
+  // Immediate activation: queue this worker to take over as active as soon as install finishes
   self.skipWaiting();
+  // Extend install lifetime until skipWaiting settles (helps mobile browsers complete activation reliably)
+  event.waitUntil(self.skipWaiting());
   event.waitUntil(
     (async () => {
       const cache = await caches.open(CACHE_NAME);
@@ -36,6 +39,8 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('activate', (event) => {
   console.log('🎯 SW v12 activating...');
+  // Immediate control: attach to open clients as soon as this worker activates
+  event.waitUntil(self.clients.claim());
   event.waitUntil(
     // Clean up old caches except current
     caches.keys().then(cacheNames => {

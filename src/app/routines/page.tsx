@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { navigateToWorkout } from '@/lib/navigateToWorkout';
 import { useRoutines } from '@/hooks/useRoutines';
 import { useWorkouts } from '@/hooks/useWorkouts';
 import { Plus, Zap } from 'lucide-react';
@@ -47,7 +48,7 @@ export default function RoutinesPage() {
     try {
       const workoutId = await createWorkout();
       await router.prefetch(`/workouts/${workoutId}`);
-      router.push(`/workouts/${workoutId}`);
+      navigateToWorkout(router, Number(workoutId));
     } catch (error) {
       console.error('Failed to start free workout:', error);
       showToast('Failed to start workout. Please try again.', 'error');

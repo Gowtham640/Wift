@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { useRouter, usePathname } from 'next/navigation';
+import { navigateToWorkout } from '@/lib/navigateToWorkout';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Play, X, Dumbbell, AlertTriangle } from 'lucide-react';
 import { db } from '@/lib/db';
@@ -65,9 +66,9 @@ export default function WorkoutResumeBanner() {
   }
 
   const handleResume = () => {
-    if (!workoutPath) return;
-    void router.prefetch(workoutPath);
-    router.push(workoutPath);
+    if (!incompleteWorkout?.id) return;
+    void router.prefetch(workoutPath!);
+    navigateToWorkout(router, incompleteWorkout.id);
   };
 
   const handleDiscardClick = () => {

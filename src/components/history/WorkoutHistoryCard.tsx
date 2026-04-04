@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { navigateToWorkout } from '@/lib/navigateToWorkout';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Trash2, Edit, Calendar, Clock, Dumbbell, TrendingUp } from 'lucide-react';
 import Button from '@/components/ui/Button';
@@ -81,9 +82,9 @@ export default function WorkoutHistoryCard({ workout, onEdit, onDelete }: Workou
   }, [router, workoutPath]);
 
   const handleCardClick = () => {
-    if (!workoutPath) return;
-    void router.prefetch(workoutPath);
-    router.push(workoutPath);
+    if (!workout.id) return;
+    void router.prefetch(workoutPath!);
+    navigateToWorkout(router, workout.id);
   };
 
   return (
@@ -176,9 +177,9 @@ export default function WorkoutHistoryCard({ workout, onEdit, onDelete }: Workou
           variant="secondary"
           onClick={(e) => {
             e.stopPropagation();
-            if (!workoutPath) return;
-            void router.prefetch(workoutPath);
-            router.push(workoutPath);
+            if (!workout.id) return;
+            void router.prefetch(workoutPath!);
+            navigateToWorkout(router, workout.id);
           }}
         >
           View Details
